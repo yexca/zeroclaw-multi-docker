@@ -1,0 +1,22 @@
+.env
+
+# Runtime state. Keep bootstrap/config logic tracked, but not Matrix sessions,
+# crypto stores, memories, logs, or generated workspaces.
+instances/*
+!instances/.gitkeep
+instances/*/.zeroclaw/state/
+instances/*/.zeroclaw/daemon_state.json
+instances/*/data/
+instances/*/agents/
+instances/*/shared/
+instances/*/logs/
+instances/*/backup-*/
+instances/*/workspace/cron/
+instances/*/workspace/memory/
+instances/*/workspace/sessions/
+instances/*/workspace/state/
+instances/**/*.db
+instances/**/*.db-*
+proactive/state/
+proactive/*.db
+proactive/*.db-*

@@ -1,0 +1,159 @@
+﻿name: zeroclaw-matrix-multi
+
+x-zeroclaw-common: &zeroclaw-common
+  image: ${ZEROCLAW_IMAGE:-zeroclaw:0.8.0-beta2-matrix}
+  user: "0:0"
+  restart: unless-stopped
+  working_dir: /zeroclaw-data/workspace
+  entrypoint: ["/bin/sh", "/bootstrap/render-config.sh"]
+  environment: &zeroclaw-common-env
+    LANG: C.UTF-8
+    ZEROCLAW_CONFIG_DIR: /zeroclaw-data/.zeroclaw
+    ZEROCLAW_DATA_DIR: ""
+    ZEROCLAW_AGENT_WORKSPACE: /zeroclaw-data/workspace
+
+    DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+    DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+    DEEPSEEK_WIRE_API: ${DEEPSEEK_WIRE_API:-chat_completions}
+    ZEROCLAW_providers__models__deepseek__text__api_key: ${DEEPSEEK_API_KEY:-}
+
+    VISION_MODEL: ${VISION_MODEL:-gpt-4o}
+    VISION_BASE_URL: ${VISION_BASE_URL:-https://api.openai.com/v1}
+    VISION_WIRE_API: ${VISION_WIRE_API:-chat_completions}
+    ZEROCLAW_providers__models__custom__vision__api_key: ${VISION_API_KEY:-}
+    # Kept for the legacy multimodal fallback path in the current source.
+    OPENAI_API_KEY: ${VISION_API_KEY:-}
+    OPENAI_BASE_URL: ${VISION_BASE_URL:-https://api.openai.com/v1}
+
+    MATRIX_HOMESERVER: ${MATRIX_HOMESERVER:-}
+    MATRIX_ALLOWED_ROOMS: ${MATRIX_ALLOWED_ROOMS:-}
+    MATRIX_MENTION_ONLY: ${MATRIX_MENTION_ONLY:-false}
+    MATRIX_INTERRUPT_ON_NEW_MESSAGE: ${MATRIX_INTERRUPT_ON_NEW_MESSAGE:-true}
+    MATRIX_REPLY_IN_THREAD: ${MATRIX_REPLY_IN_THREAD:-true}
+    MATRIX_ACK_REACTIONS: ${MATRIX_ACK_REACTIONS:-true}
+    MATRIX_STREAM_MODE: ${MATRIX_STREAM_MODE:-off}
+    MATRIX_MULTI_MESSAGE: ${MATRIX_MULTI_MESSAGE:-false}
+    MATRIX_MULTI_MESSAGE_DELAY_MS: ${MATRIX_MULTI_MESSAGE_DELAY_MS:-800}
+
+    HEARTBEAT_ENABLED: ${HEARTBEAT_ENABLED:-false}
+    HEARTBEAT_INTERVAL_MINUTES: ${HEARTBEAT_INTERVAL_MINUTES:-30}
+    HEARTBEAT_TWO_PHASE: ${HEARTBEAT_TWO_PHASE:-true}
+    HEARTBEAT_MESSAGE: ${HEARTBEAT_MESSAGE:-}
+    HEARTBEAT_ADAPTIVE: ${HEARTBEAT_ADAPTIVE:-false}
+    HEARTBEAT_MIN_INTERVAL_MINUTES: ${HEARTBEAT_MIN_INTERVAL_MINUTES:-5}
+    HEARTBEAT_MAX_INTERVAL_MINUTES: ${HEARTBEAT_MAX_INTERVAL_MINUTES:-120}
+    HEARTBEAT_DEADMAN_TIMEOUT_MINUTES: ${HEARTBEAT_DEADMAN_TIMEOUT_MINUTES:-0}
+    HEARTBEAT_MAX_RUN_HISTORY: ${HEARTBEAT_MAX_RUN_HISTORY:-100}
+    HEARTBEAT_LOAD_SESSION_CONTEXT: ${HEARTBEAT_LOAD_SESSION_CONTEXT:-false}
+    HEARTBEAT_TASK_TIMEOUT_SECS: ${HEARTBEAT_TASK_TIMEOUT_SECS:-600}
+
+    PACING_LOOP_IGNORE_TOOLS: ${PACING_LOOP_IGNORE_TOOLS:-home__job_status}
+    PACING_LOOP_DETECTION_ENABLED: ${PACING_LOOP_DETECTION_ENABLED:-true}
+    PACING_LOOP_DETECTION_WINDOW_SIZE: ${PACING_LOOP_DETECTION_WINDOW_SIZE:-20}
+    PACING_LOOP_DETECTION_MAX_REPEATS: ${PACING_LOOP_DETECTION_MAX_REPEATS:-3}
+
+    MCP_ENABLED: ${MCP_ENABLED:-false}
+    MCP_SERVER_NAME: ${MCP_SERVER_NAME:-home}
+    MCP_TRANSPORT: ${MCP_TRANSPORT:-sse}
+    MCP_URL: ${MCP_URL:-}
+    MCP_DEFERRED_LOADING: ${MCP_DEFERRED_LOADING:-true}
+    MCP_TOOL_TIMEOUT_SECS: ${MCP_TOOL_TIMEOUT_SECS:-120}
+    MCP_GATEWAY_TOKEN: ${MCP_GATEWAY_TOKEN:-}
+  volumes:
+    - ./bootstrap:/bootstrap:ro
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  healthcheck:
+    test: ["CMD", "zeroclaw", "status", "--format=exit-code"]
+    interval: 60s
+    timeout: 10s
+    retries: 3
+    start_period: 20s
+
+services:
+  agent1:
+    <<: *zeroclaw-common
+    container_name: zeroclaw-matrix-agent1
+    volumes:
+      - ./bootstrap:/bootstrap:ro
+      - ./instances/agent1:/zeroclaw-data
+    ports:
+      - "127.0.0.1:${AGENT1_HOST_PORT:-${BOT1_HOST_PORT:-42641}}:42617"
+    environment:
+      <<: *zeroclaw-common-env
+      BOT_NAME: agent1
+      MATRIX_USER_ID: ${AGENT1_MATRIX_USER_ID:-${BOT1_MATRIX_USER_ID:-}}
+      MATRIX_DEVICE_ID: ${AGENT1_MATRIX_DEVICE_ID:-${BOT1_MATRIX_DEVICE_ID:-ZEROCLAW_AGENT1}}
+      MATRIX_RECOVERY_KEY: ${AGENT1_MATRIX_RECOVERY_KEY:-${BOT1_MATRIX_RECOVERY_KEY:-}}
+      MATRIX_RECOVER_KEY: ${AGENT1_MATRIX_RECOVER_KEY:-${BOT1_MATRIX_RECOVER_KEY:-}}
+      MATRIX_EXTERNAL_PEERS: ${AGENT1_MATRIX_EXTERNAL_PEERS:-${BOT1_MATRIX_EXTERNAL_PEERS:-}}
+      MATRIX_PEERS: ${AGENT1_MATRIX_PEERS:-${BOT1_MATRIX_PEERS:-}}
+      ZEROCLAW_channels__matrix__home__access_token: ${AGENT1_MATRIX_ACCESS_TOKEN:-${BOT1_MATRIX_ACCESS_TOKEN:-}}
+      ZEROCLAW_channels__matrix__home__password: ${AGENT1_MATRIX_PASSWORD:-${BOT1_MATRIX_PASSWORD:-}}
+
+  agent2:
+    <<: *zeroclaw-common
+    container_name: zeroclaw-matrix-agent2
+    volumes:
+      - ./bootstrap:/bootstrap:ro
+      - ./instances/agent2:/zeroclaw-data
+    ports:
+      - "127.0.0.1:${AGENT2_HOST_PORT:-${BOT2_HOST_PORT:-42642}}:42617"
+    environment:
+      <<: *zeroclaw-common-env
+      BOT_NAME: agent2
+      MATRIX_USER_ID: ${AGENT2_MATRIX_USER_ID:-${BOT2_MATRIX_USER_ID:-}}
+      MATRIX_DEVICE_ID: ${AGENT2_MATRIX_DEVICE_ID:-${BOT2_MATRIX_DEVICE_ID:-ZEROCLAW_AGENT2}}
+      MATRIX_RECOVERY_KEY: ${AGENT2_MATRIX_RECOVERY_KEY:-${BOT2_MATRIX_RECOVERY_KEY:-}}
+      MATRIX_RECOVER_KEY: ${AGENT2_MATRIX_RECOVER_KEY:-${BOT2_MATRIX_RECOVER_KEY:-}}
+      MATRIX_EXTERNAL_PEERS: ${AGENT2_MATRIX_EXTERNAL_PEERS:-${BOT2_MATRIX_EXTERNAL_PEERS:-}}
+      MATRIX_PEERS: ${AGENT2_MATRIX_PEERS:-${BOT2_MATRIX_PEERS:-}}
+      ZEROCLAW_channels__matrix__home__access_token: ${AGENT2_MATRIX_ACCESS_TOKEN:-${BOT2_MATRIX_ACCESS_TOKEN:-}}
+      ZEROCLAW_channels__matrix__home__password: ${AGENT2_MATRIX_PASSWORD:-${BOT2_MATRIX_PASSWORD:-}}
+
+  agent3:
+    <<: *zeroclaw-common
+    container_name: zeroclaw-matrix-agent3
+    volumes:
+      - ./bootstrap:/bootstrap:ro
+      - ./instances/agent3:/zeroclaw-data
+    ports:
+      - "127.0.0.1:${AGENT3_HOST_PORT:-42643}:42617"
+    environment:
+      <<: *zeroclaw-common-env
+      BOT_NAME: agent3
+      MATRIX_USER_ID: "${AGENT3_MATRIX_USER_ID:-}"
+      MATRIX_DEVICE_ID: "${AGENT3_MATRIX_DEVICE_ID:-ZEROCLAW_AGENT3}"
+      MATRIX_RECOVERY_KEY: "${AGENT3_MATRIX_RECOVERY_KEY:-}"
+      MATRIX_RECOVER_KEY: "${AGENT3_MATRIX_RECOVER_KEY:-}"
+      MATRIX_EXTERNAL_PEERS: "${AGENT3_MATRIX_EXTERNAL_PEERS:-}"
+      MATRIX_PEERS: "${AGENT3_MATRIX_PEERS:-}"
+      ZEROCLAW_channels__matrix__home__access_token: "${AGENT3_MATRIX_ACCESS_TOKEN:-}"
+      ZEROCLAW_channels__matrix__home__password: "${AGENT3_MATRIX_PASSWORD:-}"
+
+  proactive:
+    image: ${PROACTIVE_IMAGE:-python:3.12-alpine}
+    container_name: zeroclaw-matrix-proactive
+    restart: unless-stopped
+    depends_on:
+      - agent1
+      - agent2
+      - agent3
+    volumes:
+      - ./proactive:/app:ro
+      - ./proactive/state:/state
+    environment:
+      PROACTIVE_ENABLED: ${PROACTIVE_ENABLED:-false}
+      PROACTIVE_AGENTS: ${PROACTIVE_AGENTS:-${PROACTIVE_BOTS:-agent1=http://agent1:42617/webhook,agent2=http://agent2:42617/webhook}}
+      PROACTIVE_CHANNELS: ${PROACTIVE_CHANNELS:-agent1=matrix.home,agent2=matrix.home}
+      PROACTIVE_TARGETS: ${PROACTIVE_TARGETS:-}
+      PROACTIVE_POLL_SECONDS: ${PROACTIVE_POLL_SECONDS:-300}
+      PROACTIVE_RANDOM_MIN_MINUTES: ${PROACTIVE_RANDOM_MIN_MINUTES:-90}
+      PROACTIVE_RANDOM_MAX_MINUTES: ${PROACTIVE_RANDOM_MAX_MINUTES:-240}
+      PROACTIVE_COOLDOWN_MINUTES: ${PROACTIVE_COOLDOWN_MINUTES:-120}
+      PROACTIVE_QUIET_HOURS: ${PROACTIVE_QUIET_HOURS:-}
+      PROACTIVE_TIMEZONE: ${PROACTIVE_TIMEZONE:-Asia/Tokyo}
+      PROACTIVE_PROMPT: ${PROACTIVE_PROMPT:-You are being invoked by the proactive sidecar, not by the user. Review HEARTBEAT.md, memory, and current context. If there is a concrete, timely reason to contact the user, send one short Matrix message with send_message_to_peer using the configured channel and peer target. If there is no useful reason, respond exactly with "skip".}
+    command: ["python", "/app/proactive.py"]
+
+
