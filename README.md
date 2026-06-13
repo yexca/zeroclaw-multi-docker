@@ -70,6 +70,11 @@ Copy-Item templates\workspace\* instances\agent2\workspace\
 Copy-Item templates\workspace\* instances\agent3\workspace\
 ```
 
+By default, `CHANNEL_DEBOUNCE_MS=3000` renders `[channels].debounce_ms = 3000`.
+Rapid messages from the same sender/session are merged and dispatched after a
+3-second quiet window, so connected messages produce one agent turn instead of
+several. Set it to `0` to disable inbound debouncing.
+
 ## Run
 
 ```powershell

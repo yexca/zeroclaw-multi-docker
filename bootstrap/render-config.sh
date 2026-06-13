@@ -196,6 +196,7 @@ summarize_video = true
 
 [channels]
 ack_reactions = $(toml_bool "${MATRIX_ACK_REACTIONS:-true}")
+debounce_ms = ${CHANNEL_DEBOUNCE_MS:-3000}
 
 [channels.matrix.home]
 enabled = true

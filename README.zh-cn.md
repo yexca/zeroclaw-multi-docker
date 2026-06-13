@@ -70,6 +70,11 @@ Copy-Item templates\workspace\* instances\agent2\workspace\
 Copy-Item templates\workspace\* instances\agent3\workspace\
 ```
 
+默认情况下，`CHANNEL_DEBOUNCE_MS=3000` 会渲染为
+`[channels].debounce_ms = 3000`。同一发送者/会话在短时间内连续发送的消息
+会在 3 秒静默窗口后合并为一次 agent turn；如果要关闭输入侧 debounce，可设为
+`0`。
+
 ## 运行
 
 ```powershell
