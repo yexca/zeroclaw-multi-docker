@@ -3,7 +3,8 @@ import { DEFAULT_PREFERENCES, loadDefaultPreferences, readPreference, STORAGE_KE
 import { createThemeController } from "./theme.mjs";
 
 const PROMPT_SYSTEM_FILES = ["AGENTS.md", "SOUL.md", "TOOLS.md", "IDENTITY.md", "USER.md", "MEMORY.md"];
-const TEMPLATE_FILES = [...PROMPT_SYSTEM_FILES, "HEARTBEAT.md"];
+const PROJECT_OPTIONAL_FILES = ["PROACTIVE.md"];
+const TEMPLATE_FILES = [...PROMPT_SYSTEM_FILES, "HEARTBEAT.md", ...PROJECT_OPTIONAL_FILES];
 const DEFAULT_TEMPLATE_FILES = {
   "AGENTS.md": `# AGENTS.md — {agent} Personal Assistant
 
@@ -201,10 +202,41 @@ Update this file as you evolve. Your identity is yours to shape.
 # Keep this file empty (or with only comments) to skip heartbeat work.
 # Add tasks below when you want {agent} to check something periodically.
 #
+# Official heartbeat limitations:
+# - HEARTBEAT.md is read by ZeroClaw's heartbeat worker, not injected into normal chat prompts.
+# - The official worker does not automatically know who to message unless heartbeat delivery is configured.
+# - With two_phase enabled, the model may conservatively skip routine or non-time-sensitive tasks.
+# - Empty files, comments, and lines that do not start with "- " are ignored.
+#
 # Examples:
 # - Check my email for important messages
 # - Review my calendar for upcoming events
 # - Run \`git status\` on my active projects
+`,
+  "PROACTIVE.md": `# PROACTIVE.md
+
+# Optional zeroclaw_multi_docker proactive service notes.
+#
+# This file is not read automatically by official ZeroClaw.
+# It is a project-level convention for an optional proactive service that can
+# invoke each agent on its own schedule and let the agent decide whether there
+# is a useful reason to contact the user.
+#
+# Why this exists:
+# - Official HEARTBEAT.md is task-oriented and conservative by default.
+# - Official heartbeat delivery needs explicit target/to configuration before it can message the user.
+# - Official two-phase heartbeat may skip routine checks.
+# - A per-agent proactive service can give each agent its own rhythm and outbound judgment.
+#
+# Suggested behavior for a proactive invocation:
+# - Review current memory, HEARTBEAT.md, and any recent context made available by the service.
+# - Contact the user only when there is a concrete, timely, and useful reason.
+# - Keep outbound messages short and avoid interrupting for low-value updates.
+# - If there is no useful reason to contact the user, respond with "skip".
+#
+# This file becomes effective only when:
+# - the optional proactive service reads it, or
+# - an official injected file such as AGENTS.md explicitly tells the agent to read it.
 `,
   "MEMORY.md": `# MEMORY.md — Long-Term Memory
 
@@ -325,6 +357,7 @@ const state = {
   selectedAgentId: "",
   selectedTemplateId: "",
   selectedTemplateFile: "",
+  pendingTemplateFileName: "",
   dashboard: null,
   dashboardRequested: false,
   agentStatuses: {},
@@ -756,15 +789,41 @@ function selectedTemplateFile(template) {
 
 function templateFileBadge(file) {
   const index = PROMPT_SYSTEM_FILES.indexOf(file);
-  if (index >= 0) return t("prompts.readOrder").replace("{n}", String(index + 1));
-  if (file === "HEARTBEAT.md") return t("prompts.heartbeatOnly");
-  return t("prompts.customFile");
+  if (index >= 0) return `#${index + 1}`;
+  if (file === "HEARTBEAT.md") return "HB";
+  if (PROJECT_OPTIONAL_FILES.includes(file)) return "OPT";
+  return "NEW";
 }
 
 function templateFileHelp(file) {
   if (PROMPT_SYSTEM_FILES.includes(file)) return t("prompts.officialFileHelp");
   if (file === "HEARTBEAT.md") return t("prompts.heartbeatFileHelp");
+  if (PROJECT_OPTIONAL_FILES.includes(file)) return t("prompts.optionalServiceFileHelp");
   return t("prompts.customFileHelp");
+}
+
+function renderTemplateAddFileControl() {
+  if (!state.pendingTemplateFileName) {
+    return `
+      <button type="button" class="template-file-tab add" data-action="template-add-file">
+        <span class="template-file-name">${escapeHtml(t("actions.addFile"))}</span>
+        <small class="template-file-badge">+</small>
+      </button>
+    `;
+  }
+  return `
+    <div class="template-file-new">
+      <input
+        type="text"
+        value="${escapeHtml(state.pendingTemplateFileName)}"
+        data-template-new-file
+        aria-label="${escapeHtml(t("prompts.addFilePrompt"))}"
+        autocomplete="off"
+      />
+      <button type="button" class="template-file-icon confirm" data-action="template-confirm-file" aria-label="${escapeHtml(t("actions.confirm"))}">✓</button>
+      <button type="button" class="template-file-icon cancel" data-action="template-cancel-file" aria-label="${escapeHtml(t("actions.cancel"))}">×</button>
+    </div>
+  `;
 }
 
 function defaultTemplateFiles() {
@@ -1296,7 +1355,7 @@ function renderTemplateForm(template) {
   const files = templateFiles(template);
   const names = templateFileNames(template);
   const activeFile = selectedTemplateFile(template);
-  const isOfficial = PROMPT_SYSTEM_FILES.includes(activeFile) || activeFile === "HEARTBEAT.md";
+  const isProtectedTemplateFile = TEMPLATE_FILES.includes(activeFile);
   return `
     <div class="form-grid">
       ${field("fields.id", "id", itemId(template), "required")}
@@ -1309,20 +1368,22 @@ function renderTemplateForm(template) {
                 <button type="button" class="template-file-tab ${file === activeFile ? "active" : ""}" data-template-file="${escapeHtml(file)}" role="tab" aria-selected="${
                 file === activeFile ? "true" : "false"
               }">
-                  <span>${escapeHtml(file)}</span>
-                  <small>${escapeHtml(templateFileBadge(file))}</small>
+                  <span class="template-file-name">${escapeHtml(file.toLowerCase())}</span>
+                  <small class="template-file-badge">${escapeHtml(templateFileBadge(file))}</small>
                 </button>
               `
             )
             .join("")}
-          <button type="button" class="template-file-tab add" data-action="template-add-file">+ ${escapeHtml(t("actions.addFile"))}</button>
+          ${renderTemplateAddFileControl()}
         </div>
-        <div class="template-file-meta">
-          <strong>${escapeHtml(activeFile)}</strong>
-          <span>${escapeHtml(templateFileHelp(activeFile))}</span>
-          ${!isOfficial ? actionButton(`template-delete-file:${activeFile}`, "actions.removeFile", "danger") : ""}
+        <div class="template-editor-shell">
+          <div class="template-file-meta">
+            <strong>${escapeHtml(activeFile)}</strong>
+            <span>${escapeHtml(templateFileHelp(activeFile))}</span>
+            ${!isProtectedTemplateFile ? actionButton(`template-delete-file:${activeFile}`, "actions.removeFile", "danger") : ""}
+          </div>
+          <textarea name="file:${escapeHtml(activeFile)}" class="template-text template-text-large">${escapeHtml(files[activeFile] || "")}</textarea>
         </div>
-        <textarea name="file:${escapeHtml(activeFile)}" class="template-text template-text-large">${escapeHtml(files[activeFile] || "")}</textarea>
       </div>
     </div>
     <div class="button-row form-actions">${actionButton("template-save", "actions.save", "primary")}</div>
@@ -1653,8 +1714,19 @@ async function handleAction(action) {
   if (action === "template-add-file") {
     const template = selectedTemplate();
     if (!template) return;
-    const input = window.prompt(t("prompts.addFilePrompt"), "RHYTHM.md");
-    if (input === null) return;
+    updateTemplateDraftFromForm();
+    state.pendingTemplateFileName = "RHYTHM.md";
+    render();
+    queueMicrotask(() => document.querySelector("[data-template-new-file]")?.select());
+  }
+  if (action === "template-cancel-file") {
+    state.pendingTemplateFileName = "";
+    render();
+  }
+  if (action === "template-confirm-file") {
+    const template = selectedTemplate();
+    if (!template) return;
+    const input = document.querySelector("[data-template-new-file]")?.value || state.pendingTemplateFileName;
     let filename;
     try {
       filename = normalizeTemplateFilename(input);
@@ -1665,6 +1737,7 @@ async function handleAction(action) {
     updateTemplateDraftFromForm();
     template.files = { ...templateFiles(template), [filename]: templateFiles(template)[filename] || "" };
     state.selectedTemplateFile = filename;
+    state.pendingTemplateFileName = "";
     render();
   }
   if (action.startsWith("template-delete-file:")) {
@@ -1776,6 +1849,7 @@ function bindEvents() {
         else if (kind === "templates") {
           state.selectedTemplateId = value;
           state.selectedTemplateFile = "";
+          state.pendingTemplateFileName = "";
         }
         else state[`selected${kind}Id`] = value;
         state.validationResult = null;
@@ -1788,6 +1862,7 @@ function bindEvents() {
     if (templateFile) {
       updateTemplateDraftFromForm();
       state.selectedTemplateFile = templateFile;
+      state.pendingTemplateFileName = "";
       render();
       return;
     }
@@ -1797,6 +1872,24 @@ function bindEvents() {
   });
 
   document.addEventListener("submit", (event) => event.preventDefault());
+
+  document.addEventListener("input", (event) => {
+    if (event.target.matches("[data-template-new-file]")) {
+      state.pendingTemplateFileName = event.target.value;
+    }
+  });
+
+  document.addEventListener("keydown", async (event) => {
+    if (!event.target.matches("[data-template-new-file]")) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      await handleAction("template-confirm-file");
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      await handleAction("template-cancel-file");
+    }
+  });
 
   document.addEventListener("change", (event) => {
     if (event.target.matches("[data-log-tail]")) {

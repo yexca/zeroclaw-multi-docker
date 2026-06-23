@@ -81,16 +81,18 @@
     "empty": "Create or select a prompt template.",
     "orderTitle": "Prompt file behavior",
     "orderSummary": "Official ZeroClaw prompt files and their read order",
-    "orderSystem": "Normal channel turns read workspace files from the workspace root in the source-defined bootstrap order. The file tabs below are ordered to match that read order where applicable. HEARTBEAT.md also lives at the workspace root, but is for the heartbeat worker only and is not injected into normal channel prompts.",
-    "orderFlow": "normal channel system prompt:\n  tools/safety/skills/workspace\n  + AGENTS.md\n  + SOUL.md\n  + TOOLS.md\n  + IDENTITY.md\n  + USER.md\n  + BOOTSTRAP.md if it exists\n  + MEMORY.md when memory injection is enabled\n  + current date/runtime/channel capabilities\n\nheartbeat worker:\n  reads HEARTBEAT.md from the workspace root\n  parses lines that start with \"- \" as periodic tasks\n  supports [high], [medium], [low], [paused], [completed] metadata\n\ncustom files:\n  written to the workspace root only\n  not read automatically unless an official file tells the agent to use them",
+    "orderSystem": "Normal channel turns read workspace files from the workspace root in the source-defined bootstrap order. The file tabs below are ordered to match that read order where applicable. HEARTBEAT.md also lives at the workspace root, but is for the heartbeat worker only and is not injected into normal channel prompts. PROACTIVE.md is a zeroclaw_multi_docker optional-service convention, not an official ZeroClaw prompt file.",
+    "orderFlow": "normal channel system prompt:\n  tools/safety/skills/workspace\n  + AGENTS.md\n  + SOUL.md\n  + TOOLS.md\n  + IDENTITY.md\n  + USER.md\n  + BOOTSTRAP.md if it exists\n  + MEMORY.md when memory injection is enabled\n  + current date/runtime/channel capabilities\n\nheartbeat worker:\n  reads HEARTBEAT.md from the workspace root\n  parses lines that start with \"- \" as periodic tasks\n  supports [high], [medium], [low], [paused], [completed] metadata\n\noptional proactive service:\n  may read PROACTIVE.md in this project\n  gives each agent its own outbound rhythm and judgment\n  not read automatically by official ZeroClaw\n\ncustom files:\n  written to the workspace root only\n  not read automatically unless an official file tells the agent to use them",
     "customNote": "The default contents here mirror ZeroClaw's personality template preset. Placeholders such as {agent}, {user}, {tz}, and {comm_style} are starter text that you can edit before applying a template.",
     "filesLabel": "Template files",
     "officialFile": "Official",
     "readOrder": "Read #{n}",
     "heartbeatOnly": "Heartbeat only",
+    "optionalServiceFile": "Optional service",
     "customFile": "Custom",
     "officialFileHelp": "This file is injected into the normal channel system prompt in the numbered order shown on its tab.",
     "heartbeatFileHelp": "This file is read by the heartbeat worker from the workspace root and is not injected into normal channel prompts.",
+    "optionalServiceFileHelp": "This project convention is for the optional proactive service; official ZeroClaw will not read it automatically.",
     "customFileHelp": "This file is written to the workspace root only; reference it from an official file to make it effective.",
     "addFilePrompt": "New workspace file name"
   },
@@ -117,7 +119,9 @@
     "applyTemplate": "Apply template",
     "export": "Export",
     "addFile": "Add file",
-    "removeFile": "Remove file"
+    "removeFile": "Remove file",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
   },
   "fields": {
     "id": "ID",

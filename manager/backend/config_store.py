@@ -20,7 +20,16 @@ PROFILE_COLLECTIONS = {
 }
 
 PROMPT_TEMPLATE_KEY = "prompt_templates"
-OFFICIAL_PROMPT_TEMPLATE_FILES = ["AGENTS.md", "SOUL.md", "TOOLS.md", "IDENTITY.md", "USER.md", "MEMORY.md", "HEARTBEAT.md"]
+DEFAULT_PROMPT_TEMPLATE_FILES = [
+    "AGENTS.md",
+    "SOUL.md",
+    "TOOLS.md",
+    "IDENTITY.md",
+    "USER.md",
+    "MEMORY.md",
+    "HEARTBEAT.md",
+    "PROACTIVE.md",
+]
 
 
 class ConfigError(Exception):
@@ -301,7 +310,7 @@ class ConfigStore:
             Path(__file__).resolve().parent / "prompt_templates",
         ]
         result: dict[str, str] = {}
-        for filename in OFFICIAL_PROMPT_TEMPLATE_FILES:
+        for filename in DEFAULT_PROMPT_TEMPLATE_FILES:
             result[filename] = ""
             for template_dir in template_dirs:
                 path = template_dir / filename

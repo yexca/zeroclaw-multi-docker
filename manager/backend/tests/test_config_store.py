@@ -38,6 +38,7 @@ class ConfigStoreTest(unittest.TestCase):
             "USER.md": "# USER.md\n\nDefault user",
             "HEARTBEAT.md": "# HEARTBEAT.md\n\n# Keep this file empty",
             "MEMORY.md": "# MEMORY.md\n\nDefault memory",
+            "PROACTIVE.md": "# PROACTIVE.md\n\n# Optional proactive service",
         }.items():
             (templates_dir / filename).write_text(content, encoding="utf-8")
         self.example_path.write_text(
@@ -77,8 +78,10 @@ class ConfigStoreTest(unittest.TestCase):
         self.assertIn("AGENTS.md", template["files"])
         self.assertIn("SOUL.md", template["files"])
         self.assertIn("HEARTBEAT.md", template["files"])
+        self.assertIn("PROACTIVE.md", template["files"])
         self.assertIn("Personal Assistant", template["files"]["AGENTS.md"])
         self.assertIn("Keep this file empty", template["files"]["HEARTBEAT.md"])
+        self.assertIn("optional proactive service", template["files"]["PROACTIVE.md"])
 
     def test_profile_crud_is_persisted(self) -> None:
         created = self.store.create_item("llm", {"id": "local", "model": "qwen"})
