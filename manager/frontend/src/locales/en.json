@@ -57,7 +57,7 @@
   },
   "agents": {
     "title": "Agent Editor",
-    "subtitle": "Create agents, wire profiles, and edit per-agent overrides.",
+    "subtitle": "Create agents and wire reusable profiles. Matrix identity is edited in Matrix Profiles.",
     "empty": "Create or select an agent to edit its settings."
   },
   "llm": {
@@ -129,6 +129,8 @@
     "kind": "Kind",
     "provider": "Provider",
     "providerAlias": "Provider alias",
+    "requiredSettings": "Required",
+    "basicSettings": "Basic settings",
     "advanced": "Advanced settings",
     "hostPort": "Host port",
     "image": "Image",
@@ -144,7 +146,8 @@
     "accessToken": "Access token",
     "password": "Password",
     "recoveryKey": "Recovery key",
-    "overrides": "Agent-specific overrides (JSON)",
+    "environment": "Environment overrides (JSON)",
+    "allowEmptyExternalPeers": "Allow empty external peers",
     "baseUrl": "Base URL",
     "model": "Model",
     "wireApi": "Wire API",
@@ -250,6 +253,20 @@
     "generatedConfigDir": "Generated config directory"
   },
   "fieldHelp": {
+    "agent": {
+      "id": "Manager-local agent ID. Used for generated container labels, instance directories, and API routes.",
+      "hostPort": "Loopback port on the host that maps to this agent's ZeroClaw gateway.",
+      "llmProfile": "Required model provider profile. Edit model credentials and provider behavior in LLM Profiles.",
+      "matrixProfile": "Required Matrix profile. Matrix user, device, password, token, rooms, and behavior are controlled there.",
+      "promptTemplate": "Workspace prompt template to apply to this agent's instance directory.",
+      "name": "Optional display/container name. Leave blank to use the ID.",
+      "image": "Optional ZeroClaw image override for this agent.",
+      "mcpProfile": "Optional MCP gateway profile assigned to this agent.",
+      "externalPeers": "Per-agent Matrix peer list used for the generated peer group. Matrix identity and credentials come from the Matrix profile.",
+      "templateApplyMode": "Controls how prompt template files are written when Apply template is clicked.",
+      "allowEmptyExternalPeers": "Bypass peer validation for local testing or channels that do not need outbound peer groups.",
+      "environment": "Advanced explicit environment variables merged into the generated agent container environment."
+    },
     "matrix": {
       "id": "Reusable profile ID selected by agents.",
       "homeserver": "Matrix homeserver URL, such as https://matrix.org or your Synapse server.",

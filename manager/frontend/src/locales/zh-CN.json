@@ -57,7 +57,7 @@
   },
   "agents": {
     "title": "智能体编辑器",
-    "subtitle": "创建智能体、关联配置，并编辑单个智能体的覆盖项。",
+    "subtitle": "创建智能体并关联可复用配置。Matrix 身份信息在 Matrix 配置中编辑。",
     "empty": "创建或选择一个智能体以编辑设置。"
   },
   "llm": {
@@ -129,6 +129,8 @@
     "kind": "Kind",
     "provider": "提供商",
     "providerAlias": "提供商别名",
+    "requiredSettings": "必填",
+    "basicSettings": "基础设置",
     "advanced": "高级设置",
     "hostPort": "主机端口",
     "image": "镜像",
@@ -144,7 +146,8 @@
     "accessToken": "访问令牌",
     "password": "密码",
     "recoveryKey": "恢复密钥",
-    "overrides": "智能体覆盖项 (JSON)",
+    "environment": "环境变量覆盖项 (JSON)",
+    "allowEmptyExternalPeers": "允许外部会话为空",
     "baseUrl": "Base URL",
     "model": "模型",
     "wireApi": "Wire API",
@@ -250,6 +253,20 @@
     "generatedConfigDir": "生成配置目录"
   },
   "fieldHelp": {
+    "agent": {
+      "id": "管理器内的智能体 ID。用于生成容器标签、实例目录和 API 路由。",
+      "hostPort": "宿主机上的本地回环端口，映射到该智能体的 ZeroClaw gateway。",
+      "llmProfile": "必填的模型提供商配置。模型凭据和提供商行为在 LLM 配置中编辑。",
+      "matrixProfile": "必填的 Matrix 配置。Matrix 用户、设备、密码、令牌、房间和行为都由这里控制。",
+      "promptTemplate": "应用到该智能体实例目录的工作区提示词模板。",
+      "name": "可选的显示名/容器名。留空时使用 ID。",
+      "image": "该智能体可选的 ZeroClaw 镜像覆盖。",
+      "mcpProfile": "分配给该智能体的可选 MCP gateway 配置。",
+      "externalPeers": "该智能体专属的 Matrix peer group 外部成员列表。Matrix 身份和凭据来自 Matrix 配置。",
+      "templateApplyMode": "点击应用模板时，控制提示词模板文件如何写入工作区。",
+      "allowEmptyExternalPeers": "本地测试或不需要外部 peer group 的通道可开启，用于跳过 peer 校验。",
+      "environment": "高级用法：显式环境变量，会合并到生成的智能体容器环境中。"
+    },
     "matrix": {
       "id": "可复用的配置 ID，智能体通过它选择 Matrix 配置。",
       "homeserver": "Matrix homeserver 地址，例如 https://matrix.org 或你的 Synapse 服务。",

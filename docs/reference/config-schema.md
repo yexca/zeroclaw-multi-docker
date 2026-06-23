@@ -33,7 +33,9 @@ Common agent fields:
 - `image`: optional image override.
 - `llm_profile`, `matrix_profile`, `mcp_profile`: profile references.
 - `prompt_template`: workspace template reference.
-- `matrix`: per-agent Matrix identity and peer overrides.
+- `matrix.external_peers`: per-agent peer group members. Matrix identity,
+  credentials, rooms, and channel behavior should live in the selected Matrix
+  profile.
 - `environment`: explicit environment overrides for advanced use.
 - `allow_empty_external_peers`: bypasses peer validation for local testing.
 

@@ -489,6 +489,33 @@ dd {
   gap: 14px;
 }
 
+.form-section {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--color-border-soft);
+  padding-bottom: 14px;
+}
+
+.form-section h3,
+.form-section summary {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.form-section h3 {
+  margin: 0;
+}
+
+.form-section summary {
+  cursor: pointer;
+}
+
+.form-section[open] {
+  display: grid;
+}
+
 .field-wide,
 .check-field {
   grid-column: 1 / -1;

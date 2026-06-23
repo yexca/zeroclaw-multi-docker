@@ -93,6 +93,19 @@ The frontend validates required strings, numeric ranges, URLs, and JSON fields
 before saving. Invalid fields are reported in a browser alert with the specific
 field name.
 
+## Agents
+
+The Agents view now focuses on container/runtime wiring and per-agent peer
+membership. Required fields include the agent ID, host port, LLM profile, and
+Matrix profile. Matrix identity and credential fields such as `user_id`,
+`device_id`, `password`, `access_token`, and `recovery_key` are edited in the
+Matrix Profiles view.
+
+Agent-level Matrix settings should normally be limited to `external_peers`,
+which controls the generated Matrix peer group for that one agent. Advanced
+agent settings include prompt template apply mode, the local-testing
+`allow_empty_external_peers` bypass, and explicit environment overrides.
+
 ## Matrix Profiles
 
 The Matrix Profiles view edits reusable Matrix channel profiles under

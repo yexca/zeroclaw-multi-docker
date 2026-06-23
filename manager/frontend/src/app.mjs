@@ -521,10 +521,12 @@ function parseJson(value, fallback = {}) {
 
 function fieldDisplayName(name) {
   const labels = {
-    overrides: t("fields.overrides"),
+    environment: t("fields.environment"),
     id: t("fields.id"),
     name: t("fields.name"),
     host_port: t("fields.hostPort"),
+    llm_profile: t("fields.llmProfile"),
+    matrix_profile: t("fields.matrixProfile"),
     provider_family: t("fields.provider"),
     provider_alias: t("fields.providerAlias"),
     base_url: t("fields.baseUrl"),
@@ -1030,7 +1032,7 @@ function renderAgentCard(agent) {
         <div><dt>${escapeHtml(t("observability.rebuild"))}</dt><dd>${escapeHtml(status?.needs_rebuild ? t("common.yes") : t("common.no"))}</dd></div>
         <div><dt>${escapeHtml(t("observability.latestExport"))}</dt><dd>${escapeHtml(formatDate(status?.latest_export_time))}</dd></div>
         <div><dt>${escapeHtml(t("fields.model"))}</dt><dd>${escapeHtml(agent.model?.model || agent.llm_profile || "")}</dd></div>
-        <div><dt>${escapeHtml(t("fields.matrixUser"))}</dt><dd>${escapeHtml(agent.matrix?.user_id || "")}</dd></div>
+        <div><dt>${escapeHtml(t("fields.matrixProfile"))}</dt><dd>${escapeHtml(agent.matrix_profile || t("common.none"))}</dd></div>
         <div><dt>${escapeHtml(t("fields.mcpStatus"))}</dt><dd>${escapeHtml(agent.mcp_profile || t("common.none"))}</dd></div>
       </dl>
       <div class="button-row">
@@ -1109,22 +1111,61 @@ function renderItemList(kind, items, selectedId) {
 }
 
 function renderAgentForm(agent) {
-  const matrix = agent.matrix || {};
   return `
+    ${renderAgentRequiredFields(agent)}
+    ${renderAgentBasicFields(agent)}
+    ${renderAgentAdvancedFields(agent)}
+    <div class="button-row form-actions">
+      ${actionButton("agent-save", "actions.save", "primary")}
+      ${actionButton("agent-validate", "actions.validate")}
+      ${actionButton("agent-apply-template", "actions.applyTemplate", "secondary", !agent.prompt_template)}
+    </div>
+    ${renderValidation()}
+  `;
+}
+
+function renderAgentRequiredFields(agent) {
+  return `<section class="form-section">
+    <h3>${escapeHtml(t("fields.requiredSettings"))}</h3>
     <div class="form-grid">
-      ${field("fields.id", "id", itemId(agent), "required")}
-      ${field("fields.name", "name", agent.name || "")}
-      ${field("fields.hostPort", "host_port", agent.host_port || "", 'type="number" min="1" max="65535"')}
-      ${field("fields.image", "image", agent.image || "")}
-      ${checkboxField("fields.enabled", "enabled", agent.enabled !== false)}
-      ${selectField("fields.llmProfile", "llm_profile", optionList(collection("llm"), agent.llm_profile, "common.none"))}
-      ${selectField("fields.matrixProfile", "matrix_profile", optionList(collection("matrix"), agent.matrix_profile, "common.none"))}
-      ${selectField("fields.mcpProfile", "mcp_profile", optionList(collection("mcp"), agent.mcp_profile, "common.none"))}
+      ${field("fields.id", "id", itemId(agent), "required", "fieldHelp.agent.id")}
+      ${field("fields.hostPort", "host_port", agent.host_port || "", 'type="number" min="1" max="65535" required', "fieldHelp.agent.hostPort")}
+      ${selectField("fields.llmProfile", "llm_profile", optionList(collection("llm"), agent.llm_profile, "common.none"), "required", "fieldHelp.agent.llmProfile")}
+      ${selectField(
+        "fields.matrixProfile",
+        "matrix_profile",
+        optionList(collection("matrix"), agent.matrix_profile, "common.none"),
+        "required",
+        "fieldHelp.agent.matrixProfile"
+      )}
+    </div>
+  </section>`;
+}
+
+function renderAgentBasicFields(agent) {
+  const matrix = agent.matrix || {};
+  return `<details class="form-section" open>
+    <summary>${escapeHtml(t("fields.basicSettings"))}</summary>
+    <div class="form-grid">
+      ${field("fields.name", "name", agent.name || "", "", "fieldHelp.agent.name")}
+      ${field("fields.image", "image", agent.image || "", "", "fieldHelp.agent.image")}
       ${selectField(
         "fields.promptTemplate",
         "prompt_template",
-        optionList(collection("prompt_templates"), agent.prompt_template, "common.none")
+        optionList(collection("prompt_templates"), agent.prompt_template, "common.none"),
+        "",
+        "fieldHelp.agent.promptTemplate"
       )}
+      ${selectField("fields.mcpProfile", "mcp_profile", optionList(collection("mcp"), agent.mcp_profile, "common.none"), "", "fieldHelp.agent.mcpProfile")}
+      ${textareaField("fields.externalPeers", "matrix_external_peers", asLines(matrix.external_peers), "", "fieldHelp.agent.externalPeers")}
+    </div>
+  </details>`;
+}
+
+function renderAgentAdvancedFields(agent) {
+  return `<details class="form-section">
+    <summary>${escapeHtml(t("fields.advanced"))}</summary>
+    <div class="form-grid">
       ${selectField(
         "fields.templateApplyMode",
         "template_apply_mode",
@@ -1135,23 +1176,14 @@ function renderAgentForm(agent) {
                 t(`templateApply.${mode}`)
               )}</option>`
           )
-          .join("")
+          .join(""),
+        "",
+        "fieldHelp.agent.templateApplyMode"
       )}
-      ${field("fields.matrixUser", "matrix_user_id", matrix.user_id || "")}
-      ${field("fields.deviceId", "matrix_device_id", matrix.device_id || "")}
-      ${passwordField("fields.accessToken", "matrix_access_token", matrix.access_token || "")}
-      ${passwordField("fields.password", "matrix_password", matrix.password || "")}
-      ${passwordField("fields.recoveryKey", "matrix_recovery_key", matrix.recovery_key || "")}
-      ${textareaField("fields.externalPeers", "matrix_external_peers", asLines(matrix.external_peers))}
-      ${textareaField("fields.overrides", "overrides", JSON.stringify(agent.overrides || {}, null, 2))}
+      ${checkboxField("fields.allowEmptyExternalPeers", "allow_empty_external_peers", agent.allow_empty_external_peers === true, "fieldHelp.agent.allowEmptyExternalPeers")}
+      ${textareaField("fields.environment", "environment", JSON.stringify(agent.environment || {}, null, 2), "", "fieldHelp.agent.environment")}
     </div>
-    <div class="button-row form-actions">
-      ${actionButton("agent-save", "actions.save", "primary")}
-      ${actionButton("agent-validate", "actions.validate")}
-      ${actionButton("agent-apply-template", "actions.applyTemplate", "secondary", !agent.prompt_template)}
-    </div>
-    ${renderValidation()}
-  `;
+  </details>`;
 }
 
 function renderValidation() {
@@ -1436,29 +1468,25 @@ function agentFromForm(form) {
   const data = readForm(form);
   const current = selectedAgent() || {};
   const matrix = current.matrix || {};
-  return {
+  return cleanEmptyValues({
     ...current,
     id: requireString(data, "id"),
     name: String(data.get("name") || "").trim(),
-    enabled: data.get("enabled") === "on",
+    enabled: true,
     host_port: requireNumber(data, "host_port", { min: 1, max: 65535 }),
     image: String(data.get("image") || "").trim(),
-    llm_profile: String(data.get("llm_profile") || ""),
-    matrix_profile: String(data.get("matrix_profile") || ""),
+    llm_profile: requireString(data, "llm_profile"),
+    matrix_profile: requireString(data, "matrix_profile"),
     mcp_profile: String(data.get("mcp_profile") || ""),
     prompt_template: String(data.get("prompt_template") || ""),
     template_apply_mode: String(data.get("template_apply_mode") || "keep"),
+    allow_empty_external_peers: data.get("allow_empty_external_peers") === "on",
     matrix: {
       ...matrix,
-      user_id: String(data.get("matrix_user_id") || ""),
-      device_id: String(data.get("matrix_device_id") || ""),
-      access_token: keepSecret(data, "matrix_access_token", matrix.access_token),
-      password: keepSecret(data, "matrix_password", matrix.password),
-      recovery_key: keepSecret(data, "matrix_recovery_key", matrix.recovery_key),
       external_peers: fromLines(String(data.get("matrix_external_peers") || ""))
     },
-    overrides: readJsonField(data, "overrides", {})
-  };
+    environment: readJsonField(data, "environment", {})
+  });
 }
 
 function profileFromForm(kind, form) {
@@ -1619,7 +1647,7 @@ async function handleAction(action) {
   }
   if (action === "agent-new") {
     state.selectedAgentId = "";
-    state.config.agents.unshift({ id: nextId("agent", collection("agents")), enabled: true, matrix: {}, overrides: {}, _draft: true });
+    state.config.agents.unshift({ id: nextId("agent", collection("agents")), enabled: true, matrix: {}, _draft: true });
     state.selectedAgentId = itemId(state.config.agents[0]);
     render();
   }
