@@ -1,9 +1,10 @@
 ﻿import { createI18n } from "./i18n.mjs";
-import { loadDefaultPreferences, readPreference, STORAGE_KEYS } from "./preferences.mjs";
+import { DEFAULT_PREFERENCES, loadDefaultPreferences, readPreference, STORAGE_KEYS } from "./preferences.mjs";
 import { createThemeController } from "./theme.mjs";
 
 const TEMPLATE_FILES = ["AGENTS.md", "IDENTITY.md", "SOUL.md", "MEMORY.md", "TOOLS.md", "USER.md", "HEARTBEAT.md"];
 const TABS = ["dashboard", "agents", "llm", "matrix", "mcp", "prompts", "export"];
+const DEFAULT_TAB = "agents";
 const SECRET_KEYS = ["api_key", "token", "password", "recovery_key", "secret"];
 const LLM_PRESETS = {
   openai: {
@@ -86,10 +87,13 @@ const LLM_ADVANCED_FIELDS = [
 
 const state = {
   config: null,
-  selectedTab: "dashboard",
+  selectedTab: TABS.includes(readPreference(globalThis.localStorage, "zeroclaw.webui.selectedTab", DEFAULT_TAB))
+    ? readPreference(globalThis.localStorage, "zeroclaw.webui.selectedTab", DEFAULT_TAB)
+    : DEFAULT_TAB,
   selectedAgentId: "",
   selectedTemplateId: "",
   dashboard: null,
+  dashboardRequested: false,
   agentStatuses: {},
   agentLogs: {},
   logTail: 200,
@@ -414,16 +418,19 @@ async function refreshDashboard() {
 }
 
 async function refreshDashboardInBackground() {
-  state.dashboardLoading = true;
-  render();
+  state.dashboardRequested = true;
+  const visible = state.selectedTab === "dashboard";
+  state.dashboardLoading = visible;
+  if (visible) render();
   try {
     await refreshDashboard();
     state.error = "";
   } catch (error) {
-    state.error = error.message || String(error);
+    state.dashboardRequested = false;
+    if (visible) state.error = error.message || String(error);
   } finally {
     state.dashboardLoading = false;
-    render();
+    if (visible || state.selectedTab === "dashboard") render();
   }
 }
 
@@ -593,8 +600,9 @@ function render() {
 }
 
 function renderNotices() {
-  const loading =
-    state.busy || state.dashboardLoading ? `<div class="notice muted">${escapeHtml(t("common.loading"))}</div>` : "";
+  const loading = state.busy || (state.selectedTab === "dashboard" && state.dashboardLoading)
+    ? `<div class="notice muted">${escapeHtml(t("common.loading"))}</div>`
+    : "";
   const notice = state.notice ? `<div class="notice success">${escapeHtml(state.notice)}</div>` : "";
   const error = state.error ? `<div class="notice danger">${escapeHtml(state.error)}</div>` : "";
   return `${loading}${notice}${error}`;
@@ -1384,9 +1392,17 @@ function bindEvents() {
     const tab = event.target.closest("[data-tab]")?.dataset.tab;
     if (tab) {
       state.selectedTab = tab;
+      try {
+        localStorage.setItem("zeroclaw.webui.selectedTab", tab);
+      } catch (_error) {
+        // Tab persistence should never block the control surface.
+      }
       state.error = "";
       state.notice = "";
       render();
+      if (tab === "dashboard" && !state.dashboardRequested) {
+        await refreshDashboardInBackground();
+      }
       return;
     }
 
@@ -1452,7 +1468,7 @@ function configureAutoRefresh() {
 }
 
 async function main() {
-  const defaults = await loadDefaultPreferences();
+  const defaults = DEFAULT_PREFERENCES;
   const initialLanguage = readPreference(localStorage, STORAGE_KEYS.language, defaults.language);
   const initialTheme = readPreference(localStorage, STORAGE_KEYS.theme, defaults.theme);
 
@@ -1481,7 +1497,20 @@ async function main() {
   bindEvents();
   render();
   await refreshConfig();
-  refreshDashboardInBackground();
+  loadDefaultPreferences().then((remoteDefaults) => {
+    if (!readPreference(localStorage, STORAGE_KEYS.language, "")) {
+      i18n.setLocale(remoteDefaults.language).then(() => render()).catch(() => {});
+    }
+    if (!readPreference(localStorage, STORAGE_KEYS.theme, "")) {
+      themeController.setTheme(remoteDefaults.theme);
+      themeController.bindSwitcher(document.querySelector("#theme-switcher"));
+    }
+  }).catch(() => {});
+  if (state.selectedTab === "dashboard") {
+    refreshDashboardInBackground();
+  } else {
+    window.setTimeout(() => refreshDashboardInBackground(), 250);
+  }
 }
 
 main().catch((error) => {

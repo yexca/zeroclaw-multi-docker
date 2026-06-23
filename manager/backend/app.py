@@ -22,7 +22,7 @@ except ModuleNotFoundError:  # pragma: no cover - package import path for tests
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = APP_ROOT.parent
-FRONTEND_DIR = APP_ROOT / "frontend"
+FRONTEND_DIR = Path(os.getenv("MANAGER_FRONTEND_DIR", str(APP_ROOT / "frontend"))).resolve()
 
 
 def env_path(name: str, default: Path) -> Path:
@@ -399,6 +399,12 @@ class ManagerHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        if target.name == "index.html":
+            self.send_header("Cache-Control", "no-cache")
+        elif "/assets/" in target.as_posix():
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        else:
+            self.send_header("Cache-Control", "public, max-age=3600")
         self.end_headers()
         self.wfile.write(body)
 

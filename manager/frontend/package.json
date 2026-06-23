@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node tests/ui-foundation.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}
