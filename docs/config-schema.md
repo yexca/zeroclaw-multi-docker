@@ -37,6 +37,38 @@ Common agent fields:
 - `environment`: explicit environment overrides for advanced use.
 - `allow_empty_external_peers`: bypasses peer validation for local testing.
 
+## LLM Profile Fields
+
+`profiles.llm` entries describe reusable ZeroClaw model provider profiles. A
+minimal remote profile usually includes:
+
+- `id`: manager-local profile ID.
+- `provider_family`: ZeroClaw provider family, for example `openai`,
+  `deepseek`, `ollama`, `gemini`, or `custom`.
+- `provider_alias`: alias used in the generated
+  `[providers.models.<provider_family>.<provider_alias>]` TOML section.
+- `model`: provider-local model ID.
+- `base_url`: endpoint URL. The manager writes this to ZeroClaw's `uri` field.
+- `wire_api`: `chat_completions` or `responses`.
+- `timeout_secs`: request timeout in seconds.
+- `api_key`: optional provider credential. Local providers and external auth
+  flows may not need it.
+
+Advanced fields supported by the manager include:
+
+- Shared ZeroClaw provider fields: `kind`, `temperature`, `max_tokens`,
+  `requires_openai_auth`, `fallback`, `fallback_models`, `extra_headers`,
+  `merge_system_into_user`, `provider_extra`, `pricing`, `native_tools`,
+  `think`, `chat_template_kwargs`, and `tls_ca_cert_path`.
+- Gemini-specific fields: `auth_mode`, `oauth_client_id`,
+  `oauth_client_secret`, and `oauth_project`.
+- Ollama-specific fields: `num_ctx`, `num_predict`, and
+  `temperature_override`.
+
+The WebUI validates required strings, HTTP/HTTPS URLs, numeric fields, numeric
+ranges, and JSON text fields before saving. JSON fields are stored as structured
+YAML and rendered as TOML inline values for agent containers.
+
 ## Secrets
 
 `config/secrets.yaml` may contain plaintext local secrets:

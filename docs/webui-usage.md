@@ -25,6 +25,42 @@ agent containers start until the WebUI creates them.
 - Prompt templates: edit workspace files that can be applied to agents.
 - Export: write redacted generated configuration under `config/generated/`.
 
+## LLM Profiles
+
+The LLM Profiles view edits reusable model provider profiles under
+`profiles.llm`.
+
+Creating a new LLM profile starts from the OpenAI preset. The provider selector
+can also apply presets for DeepSeek, Ollama, Gemini, and OpenAI-compatible
+endpoints. Changing the provider overwrites preset-managed fields such as
+provider alias, base URL, model, wire API, and timeout, but it keeps the profile
+ID and API key.
+
+Core fields:
+
+- `ID`: manager-local profile ID used by agents through `llm_profile`.
+- `Provider`: ZeroClaw provider family, such as `openai`, `deepseek`,
+  `ollama`, `gemini`, or `custom`.
+- `Provider alias`: the alias half of ZeroClaw's
+  `[providers.models.<family>.<alias>]` entry. Use aliases to keep multiple
+  profiles for the same family, such as `openai.default` and `openai.review`.
+- `Base URL`: endpoint URL. For OpenAI-compatible endpoints, include the API
+  prefix when required, for example `https://api.example.com/v1`.
+- `Model`: provider-local model ID.
+- `Wire API`: request protocol. Use `chat_completions` for ordinary
+  `/v1/chat/completions` or compatible endpoints. Use `responses` only for
+  OpenAI Responses/Codex style `/v1/responses` endpoints or compatible services
+  that explicitly require it.
+
+Advanced settings are folded under the advanced panel. They map to ZeroClaw
+provider fields such as temperature, fallback models, extra HTTP headers,
+provider-specific request body extras, cost pricing, TLS CA path, Gemini OAuth
+settings, and Ollama context/output overrides.
+
+The frontend validates required strings, numeric ranges, URLs, and JSON fields
+before saving. Invalid fields are reported in a browser alert with the specific
+field name.
+
 ## Files
 
 Commit examples only:
