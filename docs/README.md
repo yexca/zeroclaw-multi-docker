@@ -1,23 +1,41 @@
-# Documentation
+# ZeroClaw Multi Docker Documentation
 
-This directory contains operator and maintainer notes for the ZeroClaw multi
-Docker manager.
+This documentation is organized by user intent:
 
-## Contents
+- **Getting started**: first-run paths for new operators.
+- **Guides**: task-oriented operating instructions.
+- **Concepts**: system design and security explanations.
+- **Reference**: exact configuration and API details.
+- **Development**: maintainer notes for changing the manager.
 
-- [WebUI Usage](webui-usage.md): day-to-day manager workflows, local files, and
-  troubleshooting.
-- [WebUI Architecture](webui-architecture.md): runtime flow, Docker API flow,
-  and the manager security boundary.
-- [Configuration Schema](config-schema.md): YAML layout for manager config,
-  profiles, agents, secrets, and validation.
-- [I18n And Theme](i18n-theme.md): frontend locale and theme conventions.
-- [Docker Socket Proxy Security](docker-socket-proxy-security.md): socket proxy
-  exposure model and operational notes.
+## New Operators
 
-## Conventions
+- [Quickstart](getting-started/quickstart.md): copy local config, start the
+  manager, and open the WebUI.
+- [WebUI Usage](guides/webui-usage.md): daily workflows for agents, profiles,
+  templates, exports, and troubleshooting.
+
+## Operating The Manager
+
+- [WebUI Usage](guides/webui-usage.md)
+- [Configuration Schema](reference/config-schema.md)
+- [API Reference](reference/api.md)
+
+## Understanding The System
+
+- [Architecture](concepts/architecture.md)
+- [Docker Socket Proxy Security](concepts/docker-socket-proxy-security.md)
+
+## Developing The Manager
+
+- [Release Build](development/release-build.md)
+- [I18n And Theme](development/i18n-theme.md)
+
+## Documentation Conventions
 
 - Keep documentation in English for broad compatibility.
+- Prefer task pages for operator workflows and reference pages for exact field
+  definitions.
 - Keep local-only files out of Git; document committed examples instead.
-- When adding WebUI fields, update the matching usage and schema notes in this
-  directory.
+- When adding WebUI fields, update both the usage guide and the matching
+  reference page.

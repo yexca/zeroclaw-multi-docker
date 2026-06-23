@@ -37,14 +37,17 @@ refuse to modify same-named containers without matching manager labels.
 
 ## Frontend Startup Flow
 
-The frontend is static HTML, CSS, and browser ES modules. `index.html` includes
-a lightweight startup skeleton so the first paint is not blank while modules and
-API calls load.
+The frontend is static HTML, CSS, and browser JavaScript. The source uses
+browser ES modules, and the manager image builds them into a hashed static asset
+with esbuild. `index.html` includes a lightweight startup skeleton so the first
+paint is not blank while modules and API calls load.
 
-Startup applies the locally stored theme before loading CSS, initializes i18n,
-renders the shell, fetches `/api/config`, and then refreshes `/api/dashboard` in
-the background. This keeps the editor usable even when Docker status calls are
-slow or temporarily unavailable.
+Startup applies the locally stored theme before loading CSS, initializes i18n
+from local/default preferences, renders the shell, and fetches `/api/config`.
+The default first view is the configuration editor. Docker-backed dashboard
+status is refreshed in the background or when the Dashboard view is opened.
+This keeps configuration editing usable even when Docker status calls are slow
+or temporarily unavailable.
 
 ## Docker API Flow
 

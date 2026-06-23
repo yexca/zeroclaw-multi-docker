@@ -42,11 +42,11 @@ docker compose up -d
 
 详细文档：
 
-- [WebUI 使用说明](docs/webui-usage.md)
-- [配置 schema](docs/config-schema.md)
-- [Docker socket proxy 安全边界](docs/docker-socket-proxy-security.md)
-- [i18n 和主题](docs/i18n-theme.md)
-- [架构说明](docs/webui-architecture.md)
+- [WebUI 使用说明](docs/guides/webui-usage.md)
+- [配置 schema](docs/reference/config-schema.md)
+- [Docker socket proxy 安全边界](docs/concepts/docker-socket-proxy-security.md)
+- [i18n 和主题](docs/development/i18n-theme.md)
+- [架构说明](docs/concepts/architecture.md)
 
 ## 镜像
 

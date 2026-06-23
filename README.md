@@ -7,6 +7,10 @@ The manager is the only default entrypoint. A plain `docker compose up -d`
 starts the WebUI and Docker socket proxy; agent containers are created,
 configured, started, stopped, and deleted by the WebUI through the Docker API.
 
+The manager image builds the frontend inside Docker and serves the generated
+static files from the Python backend. The WebUI loads configuration first and
+refreshes Docker-backed dashboard status in the background.
+
 Chinese documentation is available in [README.zh-cn.md](README.zh-cn.md).
 
 ## What Is Included
@@ -18,6 +22,7 @@ Chinese documentation is available in [README.zh-cn.md](README.zh-cn.md).
 - `manager/`: WebUI backend and frontend.
 - `bootstrap/render-config.sh`: rendered into manager-created agent containers.
 - `templates/workspace/`: starter workspace prompt files.
+- `docs/`: operator, reference, architecture, and development docs.
 
 ## Start
 
@@ -48,11 +53,13 @@ operation history.
 
 Detailed docs:
 
-- [WebUI usage](docs/webui-usage.md)
-- [Configuration schema](docs/config-schema.md)
-- [Docker socket proxy security](docs/docker-socket-proxy-security.md)
-- [i18n and theme](docs/i18n-theme.md)
-- [Architecture](docs/webui-architecture.md)
+- [Documentation index](docs/README.md)
+- [Quickstart](docs/getting-started/quickstart.md)
+- [WebUI usage](docs/guides/webui-usage.md)
+- [Configuration schema](docs/reference/config-schema.md)
+- [API reference](docs/reference/api.md)
+- [Architecture](docs/concepts/architecture.md)
+- [Docker socket proxy security](docs/concepts/docker-socket-proxy-security.md)
 
 ## Image
 
@@ -92,4 +99,10 @@ Individual checks:
 docker compose config --quiet
 python -m unittest discover manager/backend/tests
 node manager/frontend/tests/ui-foundation.test.mjs
+```
+
+The Docker image build runs the frontend build in a `node:22-alpine` stage:
+
+```powershell
+docker build -t zeroclaw-manager:test ./manager
 ```
