@@ -69,6 +69,42 @@ x-zeroclaw-common: &zeroclaw-common
     start_period: 20s
 
 services:
+  docker-socket-proxy:
+    image: ${DOCKER_SOCKET_PROXY_IMAGE:-tecnativa/docker-socket-proxy:0.3.0}
+    container_name: zeroclaw-docker-socket-proxy
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${DOCKER_SOCKET_PROXY_LOG_LEVEL:-info}
+      CONTAINERS: ${DOCKER_SOCKET_PROXY_CONTAINERS:-1}
+      IMAGES: ${DOCKER_SOCKET_PROXY_IMAGES:-1}
+      NETWORKS: ${DOCKER_SOCKET_PROXY_NETWORKS:-1}
+      VOLUMES: ${DOCKER_SOCKET_PROXY_VOLUMES:-1}
+      POST: ${DOCKER_SOCKET_PROXY_POST:-1}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  manager:
+    build:
+      context: ./manager
+    image: ${MANAGER_IMAGE:-zeroclaw-manager:local}
+    container_name: zeroclaw-manager
+    restart: unless-stopped
+    depends_on:
+      - docker-socket-proxy
+    ports:
+      - "127.0.0.1:${MANAGER_HOST_PORT:-7652}:8080"
+    environment:
+      MANAGER_BIND_HOST: 0.0.0.0
+      MANAGER_PORT: 8080
+      DOCKER_API_URL: ${DOCKER_API_URL:-http://docker-socket-proxy:2375}
+      MANAGER_CONFIG_PATH: /app/config/manager.yaml
+      MANAGER_SECRETS_PATH: /app/config/secrets.yaml
+      GENERATED_CONFIG_DIR: /app/config/generated
+      ZEROCLAW_IMAGE: ${ZEROCLAW_IMAGE:-ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian}
+    volumes:
+      - ./config:/app/config
+      - ./instances:/app/instances
+
   agent1:
     <<: *zeroclaw-common
     container_name: zeroclaw-matrix-agent1

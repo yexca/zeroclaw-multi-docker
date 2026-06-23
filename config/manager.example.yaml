@@ -1,0 +1,58 @@
+# Copy to config/manager.yaml for local use.
+
+version: 1
+
+server:
+  bind_host: 127.0.0.1
+  host_port: 7652
+
+docker:
+  proxy_url: http://docker-socket-proxy:2375
+  project_name: zeroclaw-matrix-multi
+
+paths:
+  secrets_file: /app/config/secrets.yaml
+  generated_dir: /app/config/generated
+  instances_dir: /app/instances
+
+defaults:
+  zeroclaw_image: ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
+  matrix:
+    mention_only: false
+    reply_in_thread: true
+    ack_reactions: true
+    stream_mode: off
+
+agents:
+  - name: agent1
+    enabled: true
+    host_port: 42641
+    model:
+      provider_family: deepseek
+      provider_alias: text
+      model: deepseek-chat
+      base_url: https://api.deepseek.com/v1
+      wire_api: chat_completions
+      timeout_secs: 120
+    matrix:
+      user_id: "@agent1:matrix.example.com"
+      device_id: ZEROCLAW_AGENT1
+      external_peers:
+        - "@you:matrix.example.com"
+        - "#agent1-room:matrix.example.com"
+  - name: agent2
+    enabled: true
+    host_port: 42642
+    model:
+      provider_family: ollama
+      provider_alias: local
+      model: qwen2.5:14b
+      base_url: http://host.docker.internal:11434
+      wire_api: chat_completions
+      timeout_secs: 600
+    matrix:
+      user_id: "@agent2:matrix.example.com"
+      device_id: ZEROCLAW_AGENT2
+      external_peers:
+        - "@you:matrix.example.com"
+        - "#agent2-room:matrix.example.com"
