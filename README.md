@@ -2,52 +2,43 @@
 
 Docker Compose templates for running multiple ZeroClaw Matrix agents from one host.
 
-This project provides a repeatable container setup for ZeroClaw `0.8.0-beta-2`
-with Matrix channel support, per-agent workspaces, per-agent model providers,
-optional vision routing, optional MCP gateway access, and an optional proactive
-wake-up sidecar.
+This project uses the official ZeroClaw `v0.8.1-debian` image. The Debian image
+includes a shell and Matrix support, so this repository no longer builds or
+patches a local ZeroClaw image. It provides per-agent workspaces, per-agent
+model providers, optional vision routing, optional MCP gateway access, and an
+optional proactive wake-up sidecar.
 
 Chinese documentation is available in [README.zh-cn.md](README.zh-cn.md).
 
 ## What Is Included
 
 - `docker-compose.yml`: three example agents, `agent1`, `agent2`, and `agent3`, plus an optional proactive sidecar.
-- `Dockerfile`: adds common diagnostic tools to the Matrix-enabled ZeroClaw image.
-- `.env.example`: public placeholder configuration for model providers, Matrix accounts, MCP, and proactive wake-ups.
+- `.env.example`: public placeholder configuration for the official image, model providers, Matrix accounts, MCP, and proactive wake-ups.
 - `bootstrap/render-config.sh`: renders a ZeroClaw schema v3 `config.toml` inside each container.
 - `proactive/proactive.py`: optional sidecar that periodically POSTs wake prompts to each agent gateway.
 - `tools/add-agent.ps1`: PowerShell helper for adding more agent services.
 - `tools/reset-agent-state.ps1`: helper for clearing generated state and rotating Matrix device IDs.
 - `templates/workspace/`: blank starter files for per-agent workspace instructions and memory.
-- `patches/zeroclaw-0.8.0-beta2-docker-matrix.patch`: patch used to build the Matrix-enabled Docker image described below.
 
-## Build The Base Image
+## Image
 
-The upstream version is `0.8.0-beta-2`. The patch in this repository is
-generated against ZeroClaw commit `af50475a37fa9d2ae78758d2fbe82bda67218c17`,
-whose Cargo package version is still `0.8.0-beta-2`.
+The default image is:
 
-```powershell
-git clone https://github.com/zeroclaw-labs/zeroclaw.git
-cd zeroclaw
-git checkout af50475a37fa9d2ae78758d2fbe82bda67218c17
-git apply ..\zeroclaw_multi_docker\patches\zeroclaw-0.8.0-beta2-docker-matrix.patch
-docker build -f Dockerfile.debian -t zeroclaw:0.8.0-beta2-matrix .
+```env
+ZEROCLAW_IMAGE=ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
 ```
 
-## Build The Tool Image
+This image was tested with `bootstrap/render-config.sh`; `zeroclaw channel list`
+reports Matrix as available after rendering a Matrix config.
 
-Compose can build a thin tools layer on top of the base image:
+To pre-pull it:
 
 ```powershell
-cd zeroclaw_multi_docker
-docker compose build
+docker pull ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
 ```
 
-The tool image adds commands such as `bash`, `curl`, `file`, `jq`, `less`,
-`nano`, `ping`, `ss`/`ip`, `vim`, `xxd`, `zip`, and `unzip`. Set
-`ZEROCLAW_INSTALL_PYTHON3=true` before rebuilding if agents should also have
-`python`, `python3`, `pip3`, and venv support in their containers.
+To upgrade later, change `ZEROCLAW_IMAGE` in `.env` to the new official Debian
+tag and restart the services.
 
 ## Configure
 
@@ -125,9 +116,9 @@ AGENT3_MODEL_TIMEOUT_SECS=120
 reference, such as `ollama.local`, `deepseek.text`, `openai.main`, or
 `gemini.flash`.
 
-A v3 `model_routes` entry named `vision` still points to `custom.vision`, and
-query classification routes messages containing Matrix image markers
-(`[IMAGE:` / `[Image:`) to that vision model.
+A v3 `model_routes` entry named `vision` points to `custom.vision`, and query
+classification routes messages containing Matrix image markers (`[IMAGE:` /
+`[Image:`) to that vision model.
 
 ## MCP Gateway
 

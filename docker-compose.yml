@@ -1,13 +1,7 @@
 name: zeroclaw-matrix-multi
 
 x-zeroclaw-common: &zeroclaw-common
-  image: ${ZEROCLAW_IMAGE:-zeroclaw:0.8.0-beta2-matrix-tools}
-  build:
-    context: .
-    dockerfile: Dockerfile
-    args:
-      ZEROCLAW_BASE_IMAGE: ${ZEROCLAW_BASE_IMAGE:-zeroclaw:0.8.0-beta2-matrix}
-      ZEROCLAW_INSTALL_PYTHON3: ${ZEROCLAW_INSTALL_PYTHON3:-false}
+  image: ${ZEROCLAW_IMAGE:-ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian}
   user: "0:0"
   restart: unless-stopped
   working_dir: /zeroclaw-data/workspace
