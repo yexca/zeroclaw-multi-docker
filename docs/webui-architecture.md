@@ -91,6 +91,13 @@ Workspace initialization writes selected prompt template files under
 `instances/{agent}/workspace` and supports explicit keep, missing-only,
 overwrite, and merge modes.
 
+Validation runs before agent startup and is available through the API for WebUI
+forms. It checks agent identity, host ports, image/model settings, profile and
+template references, Matrix credentials and peers, MCP URL requirements, and
+workspace writability. Normal exports and API rendering responses redact
+secret-like values; full secret exports require an explicit local
+`include_secrets` request.
+
 ## Docker API Flow
 
 The manager must not mount the Docker socket directly. Docker control follows
@@ -142,6 +149,11 @@ Agent containers created by the future manager should be labeled with the
 Compose project or an explicit manager label so the backend can distinguish
 managed ZeroClaw containers from unrelated Docker workloads.
 
+The current Docker API implementation uses only ping/version-compatible
+connectivity, image pull, network inspect/create, container inspect/list,
+create, start, stop, restart, delete, and logs. It does not call Docker exec,
+kill, volume deletion, system, swarm, service, secret, or build endpoints.
+
 ## Security Boundaries
 
 Implemented in this stage:
@@ -168,6 +180,8 @@ Implemented in the Docker runtime stage:
   manager-owned containers when the stored spec hash changes.
 - Stop, restart, delete, status, and logs refuse to operate on a same-named
   container without matching manager labels.
+- Agent configuration deletion keeps instance data by default and only deletes
+  the instance directory when explicitly requested.
 - Host gateway and Matrix host aliases are configured through Docker
   `ExtraHosts`, and the gateway port is published on `127.0.0.1`.
 

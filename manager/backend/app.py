@@ -148,6 +148,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 success(self, 200, STORE.update_full_config(payload))
                 return
 
+        if path == "/api/config/validate" and method in {"GET", "POST"}:
+            success(self, 200, STORE.validate_config())
+            return
+
         if path == "/api/export" and method == "POST":
             success(self, 200, STORE.export(self.read_optional_json()))
             return
@@ -211,7 +215,11 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 success(self, 200, STORE.update_agent(identifier, self.read_json()))
                 return
             if method == "DELETE":
-                success(self, 200, STORE.delete_agent(identifier))
+                payload = self.read_optional_json()
+                delete_instance_dir = self.parse_bool((query.get("delete_instance_dir") or ["false"])[0])
+                if isinstance(payload, dict) and "delete_instance_dir" in payload:
+                    delete_instance_dir = bool(payload["delete_instance_dir"])
+                success(self, 200, STORE.delete_agent(identifier, delete_instance_dir=delete_instance_dir))
                 return
 
         if len(segments) == 2:
@@ -256,6 +264,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
             return max(1, min(2000, int((query.get("tail") or ["200"])[0])))
         except ValueError:
             return 200
+
+    def parse_bool(self, value: str) -> bool:
+        return str(value).lower() in {"1", "true", "yes", "on"}
 
     def read_json(self) -> object:
         length = int(self.headers.get("Content-Length", "0"))

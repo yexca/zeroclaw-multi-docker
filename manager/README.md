@@ -30,6 +30,10 @@ template application, env exports, compose exports, and ZeroClaw
 `config.toml` previews. The existing `/bootstrap/render-config.sh` remains the
 runtime source of truth inside agent containers.
 
+Validation and safety checks live in `backend/config_validator.py`. Startup is
+blocked when required agent settings are missing, while validation endpoints
+return all practical issues at once for the WebUI to display.
+
 The manager is intended to be reached only through the host loopback binding in
 `docker-compose.yml`.
 
@@ -79,6 +83,7 @@ Core endpoints:
 
 - `GET /api/health`
 - `GET /api/config`, `PUT /api/config`
+- `GET|POST /api/config/validate`
 - `GET|POST /api/profiles/{llm|matrix|mcp}`
 - `PUT|DELETE /api/profiles/{llm|matrix|mcp}/{id}`
 - `GET|POST /api/prompt-templates`
@@ -105,6 +110,12 @@ Workspace template application supports `keep`, `missing`, `overwrite`, and
 `merge` modes. Creating an agent attempts to initialize the selected template
 without overwriting existing files; explicit WebUI calls can choose a different
 mode.
+
+Exports omit secret values by default. Passing `include_secrets: true` to
+`POST /api/export` is required for a full local backup. Deleting an agent
+configuration keeps its instance directory by default; pass
+`delete_instance_dir: true` only when the workspace and runtime data should be
+removed too.
 
 Run the frontend foundation checks with:
 

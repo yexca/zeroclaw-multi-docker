@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -108,9 +109,13 @@ class ConfigStore:
         self.generated_dir = generated_dir
         try:
             from agent_renderer import AgentRenderer
+            from config_validator import ConfigValidator
         except ModuleNotFoundError:  # pragma: no cover - package import path for tests
             from .agent_renderer import AgentRenderer
-        self.renderer = AgentRenderer(config_path.resolve().parents[1] if len(config_path.resolve().parents) > 1 else Path.cwd())
+            from .config_validator import ConfigValidator
+        project_root = config_path.resolve().parents[1] if len(config_path.resolve().parents) > 1 else Path.cwd()
+        self.renderer = AgentRenderer(project_root)
+        self.validator = ConfigValidator(project_root)
 
     def load(self) -> dict[str, Any]:
         path = self.config_path if self.config_path.exists() else self.example_path
@@ -127,7 +132,11 @@ class ConfigStore:
     def update_full_config(self, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise ConfigError("invalid_payload", "Configuration payload must be an object.")
-        return self.save(payload)
+        normalized = self._normalize(payload)
+        validation = self.validator.validate_config(normalized, check_ports=False)
+        if validation["errors"]:
+            raise ConfigError("validation_failed", "Configuration has validation errors.", validation, 422)
+        return self.save(normalized)
 
     def list_collection(self, kind: str) -> list[dict[str, Any]]:
         config = self.load()
@@ -201,49 +210,47 @@ class ConfigStore:
     def update_agent(self, identifier: str, payload: Any) -> dict[str, Any]:
         return self.update_item("agents", identifier, payload)
 
-    def delete_agent(self, identifier: str) -> dict[str, Any]:
-        return self.delete_item("agents", identifier)
+    def delete_agent(self, identifier: str, delete_instance_dir: bool = False) -> dict[str, Any]:
+        config = self.load()
+        agent = self.get_agent(identifier)
+        deleted = self.delete_item("agents", identifier)
+        result = {"agent": deleted, "instance_dir_deleted": False}
+        if delete_instance_dir:
+            instance_dir = self.renderer.workspace_dir(config, agent).parent.resolve()
+            instances_dir = Path(str(config.get("paths", {}).get("instances_dir") or self.config_path.resolve().parents[1] / "instances")).resolve()
+            if instances_dir != instance_dir and instances_dir not in instance_dir.parents:
+                raise ConfigError("unsafe_instance_path", "Refusing to delete an instance directory outside instances_dir.", {"path": str(instance_dir)}, 409)
+            if instance_dir.exists():
+                shutil.rmtree(instance_dir)
+                result["instance_dir_deleted"] = True
+        return result
 
     def validate_agent(self, identifier: str) -> dict[str, Any]:
         config = self.load()
         agent = self.get_agent(identifier)
-        errors: list[dict[str, str]] = []
-        warnings: list[dict[str, str]] = []
+        result = self.validator.validate_agent(config, agent, check_ports=False)
+        result["agent"] = agent
+        return result
 
-        if not item_id(agent):
-            errors.append({"field": "id", "message": "Agent requires an id or name."})
-        for field in ("host_port",):
-            if field in agent and not isinstance(agent[field], int):
-                errors.append({"field": field, "message": "Value must be an integer."})
-
-        references = {
-            "llm_profile": ("llm", agent.get("llm_profile")),
-            "matrix_profile": ("matrix", agent.get("matrix_profile")),
-            "mcp_profile": ("mcp", agent.get("mcp_profile")),
-            "prompt_template": ("prompt_templates", agent.get("prompt_template")),
-        }
-        for field, (kind, value) in references.items():
-            if value and self._find_index(self._get_collection(config, kind), str(value)) is None:
-                errors.append({"field": field, "message": f"Referenced {kind} item does not exist."})
-
-        if not agent.get("enabled", True):
-            warnings.append({"field": "enabled", "message": "Agent is disabled and will not be started by default."})
-
-        return {"valid": not errors, "errors": errors, "warnings": warnings, "agent": agent}
+    def validate_config(self) -> dict[str, Any]:
+        return self.validator.validate_config(self.load(), check_ports=False)
 
     def export(self, payload: Any | None = None) -> dict[str, Any]:
         config = self.load()
         export_name = "resolved.yaml"
         export_payload: Any = config
+        include_secrets = isinstance(payload, dict) and payload.get("include_secrets") is True
         if isinstance(payload, dict) and isinstance(payload.get("filename"), str) and payload["filename"].strip():
             export_name = Path(payload["filename"]).name
         if isinstance(payload, dict) and payload.get("agent"):
             agent = self.get_agent(str(payload["agent"]))
             formats = payload.get("formats") if isinstance(payload.get("formats"), list) else None
-            export_payload = self.renderer.export_agent(config, agent, formats=formats)
+            export_payload = self.renderer.export_agent(config, agent, formats=formats, include_secrets=include_secrets)
+        if not include_secrets:
+            export_payload = redact(export_payload)
         target = self.generated_dir / export_name
         self._atomic_write_yaml(target, export_payload)
-        return {"path": str(target), "config": export_payload}
+        return {"path": str(target), "config": export_payload, "include_secrets": include_secrets}
 
     def apply_prompt_template(self, identifier: str, payload: Any | None = None) -> dict[str, Any]:
         mode = "keep"
@@ -256,7 +263,7 @@ class ConfigStore:
     def render_agent(self, identifier: str, formats: list[str] | None = None) -> dict[str, Any]:
         config = self.load()
         agent = self.get_agent(identifier)
-        return self.renderer.export_agent(config, agent, formats=formats)
+        return self.renderer.export_agent(config, agent, formats=formats, include_secrets=False)
 
     def _normalize(self, raw: dict[str, Any]) -> dict[str, Any]:
         config = deep_merge(default_config(), raw)

@@ -202,11 +202,12 @@ class AgentRenderer:
             "conflicts": conflicts,
         }
 
-    def export_agent(self, config: dict[str, Any], agent: dict[str, Any], formats: list[str] | None = None) -> dict[str, Any]:
+    def export_agent(self, config: dict[str, Any], agent: dict[str, Any], formats: list[str] | None = None, include_secrets: bool = True) -> dict[str, Any]:
         resolved = self.resolve_agent(config, agent)
-        env = self.render_env(config, resolved)
+        raw_env = self.render_env(config, resolved)
+        env = raw_env if include_secrets else redact_env(raw_env)
         formats = formats or ["env", "compose", "zeroclaw_config_preview"]
-        result: dict[str, Any] = {"agent": resolved, "formats": {}}
+        result: dict[str, Any] = {"agent": resolved if include_secrets else redact_config(resolved), "formats": {}}
         if "env" in formats:
             result["formats"]["env"] = env
             result["formats"]["env_file"] = render_env_file(env)
@@ -288,6 +289,26 @@ def render_env_file(env: dict[str, str]) -> str:
         else:
             lines.append(f"{key}={value}")
     return "\n".join(lines) + "\n"
+
+
+def redact_env(env: dict[str, str]) -> dict[str, str]:
+    return {key: ("[REDACTED]" if is_secret_key(key) and value else value) for key, value in env.items()}
+
+
+def redact_config(value: Any) -> Any:
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            result[key] = "[REDACTED]" if is_secret_key(str(key)) and item else redact_config(item)
+        return result
+    if isinstance(value, list):
+        return [redact_config(item) for item in value]
+    return value
+
+
+def is_secret_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(word in lowered for word in ("api_key", "token", "password", "recovery_key", "recover_key", "secret"))
 
 
 def render_config_toml_preview(env: dict[str, str]) -> str:

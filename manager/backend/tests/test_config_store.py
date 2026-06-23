@@ -8,6 +8,7 @@ import yaml
 
 from manager.backend.agent_renderer import AgentRenderer, REQUIRED_ENV_KEYS
 from manager.backend.config_store import ConfigError, ConfigStore, redact
+from manager.backend.config_validator import ConfigValidator
 from manager.backend.docker_controller import (
     AGENT_ID_LABEL,
     AGENT_NAME_LABEL,
@@ -75,7 +76,7 @@ class ConfigStoreTest(unittest.TestCase):
         result = self.store.validate_agent("agent2")
 
         self.assertFalse(result["valid"])
-        self.assertEqual(result["errors"][0]["field"], "llm_profile")
+        self.assertIn("not_found", {entry["code"] for entry in result["errors"]})
 
     def test_export_writes_generated_yaml(self) -> None:
         result = self.store.export({"filename": "resolved.test.yaml"})
@@ -88,7 +89,23 @@ class ConfigStoreTest(unittest.TestCase):
             {
                 "paths": {"instances_dir": str(Path(self.temp_dir.name) / "instances")},
                 "prompt_templates": [{"id": "default", "files": {"AGENTS.md": "hello"}}],
-                "agents": [{"id": "agent1", "prompt_template": "default"}],
+                "profiles": {
+                    "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "mcp": [],
+                },
+                "agents": [
+                    {
+                        "id": "agent1",
+                        "name": "agent1",
+                        "host_port": 42641,
+                        "llm_profile": "llm",
+                        "matrix_profile": "matrix",
+                        "prompt_template": "default",
+                        "allow_empty_external_peers": True,
+                        "matrix": {"user_id": "@agent1:matrix.example.com"},
+                    }
+                ],
             }
         )
 
@@ -100,6 +117,12 @@ class ConfigStoreTest(unittest.TestCase):
             "hello",
         )
 
+    def test_update_full_config_rejects_validation_errors(self) -> None:
+        with self.assertRaises(ConfigError) as context:
+            self.store.update_full_config({"agents": [{"id": "bad agent", "host_port": 70000}]})
+
+        self.assertEqual(context.exception.code, "validation_failed")
+
     def test_redact_masks_sensitive_fields(self) -> None:
         payload = {
             "api_key": "secret",
@@ -109,6 +132,67 @@ class ConfigStoreTest(unittest.TestCase):
         self.assertEqual(redact(payload)["api_key"], "[REDACTED]")
         self.assertEqual(redact(payload)["nested"]["matrix_access_token"], "[REDACTED]")
         self.assertEqual(redact(payload)["nested"]["plain"], "value")
+
+    def test_delete_agent_keeps_instance_dir_by_default(self) -> None:
+        instances_dir = Path(self.temp_dir.name) / "instances"
+        workspace = instances_dir / "agent1" / "workspace"
+        workspace.mkdir(parents=True)
+        (workspace / "AGENTS.md").write_text("keep me", encoding="utf-8")
+        self.store.update_full_config(
+            {
+                "paths": {"instances_dir": str(instances_dir)},
+                "profiles": {
+                    "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "mcp": [],
+                },
+                "agents": [
+                    {
+                        "id": "agent1",
+                        "name": "agent1",
+                        "host_port": 42641,
+                        "llm_profile": "llm",
+                        "matrix_profile": "matrix",
+                        "allow_empty_external_peers": True,
+                        "matrix": {"user_id": "@agent1:matrix.example.com"},
+                    }
+                ],
+            }
+        )
+
+        result = self.store.delete_agent("agent1")
+
+        self.assertFalse(result["instance_dir_deleted"])
+        self.assertTrue((workspace / "AGENTS.md").exists())
+
+    def test_export_redacts_secrets_by_default(self) -> None:
+        self.store.update_full_config(
+            {
+                "profiles": {
+                    "llm": [{"id": "remote", "provider_family": "openai", "provider_alias": "main", "model": "gpt", "api_key": "secret-key"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "matrix-token"}],
+                    "mcp": [],
+                },
+                "agents": [
+                    {
+                        "id": "agent1",
+                        "name": "agent1",
+                        "host_port": 42641,
+                        "llm_profile": "remote",
+                        "matrix_profile": "matrix",
+                        "allow_empty_external_peers": True,
+                        "matrix": {"user_id": "@agent1:matrix.example.com"},
+                    }
+                ],
+            }
+        )
+
+        result = self.store.export({"agent": "agent1"})
+        text = Path(result["path"]).read_text(encoding="utf-8")
+
+        self.assertNotIn("secret-key", text)
+        self.assertNotIn("matrix-token", text)
+        self.assertIn("[REDACTED]", text)
 
 
 class DockerControllerTest(unittest.TestCase):
@@ -251,6 +335,72 @@ class AgentRendererTest(unittest.TestCase):
         self.assertIn("compose", exported["formats"])
         self.assertIn("zeroclaw_config_preview", exported["formats"])
         self.assertIn("schema_version = 3", exported["formats"]["zeroclaw_config_preview"])
+
+    def test_export_agent_redacts_preview_when_requested(self) -> None:
+        config = copy_config(self.config)
+        config["profiles"]["llm"][0]["api_key"] = "secret-key"
+        config["profiles"]["matrix"][0]["access_token"] = "matrix-token"
+
+        exported = self.renderer.export_agent(config, self.agent, include_secrets=False)
+        serialized = yaml.safe_dump(exported)
+
+        self.assertNotIn("secret-key", serialized)
+        self.assertNotIn("matrix-token", serialized)
+        self.assertIn("[REDACTED]", serialized)
+
+
+class ConfigValidatorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        self.validator = ConfigValidator(self.root)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_validator_returns_multiple_agent_errors(self) -> None:
+        config = {
+            "paths": {"instances_dir": str(self.root / "instances")},
+            "profiles": {"llm": [{"id": "remote", "provider_family": "openai", "provider_alias": "main"}], "matrix": [{"id": "matrix"}], "mcp": []},
+            "prompt_templates": [],
+            "agents": [
+                {
+                    "id": "bad agent",
+                    "name": "bad agent",
+                    "host_port": 70000,
+                    "llm_profile": "remote",
+                    "matrix_profile": "matrix",
+                    "prompt_template": "missing",
+                }
+            ],
+        }
+
+        result = self.validator.validate_config(config)
+        codes = {entry["code"] for entry in result["errors"]}
+
+        self.assertFalse(result["valid"])
+        self.assertIn("invalid_agent_name", codes)
+        self.assertIn("invalid_host_port", codes)
+        self.assertIn("missing_model", codes)
+        self.assertIn("missing_matrix_homeserver", codes)
+        self.assertIn("missing_matrix_credentials", codes)
+        self.assertIn("missing_matrix_external_peers", codes)
+
+    def test_start_validation_raises_structured_error(self) -> None:
+        config = {
+            "paths": {"instances_dir": str(self.root / "instances")},
+            "profiles": {"llm": [], "matrix": [], "mcp": []},
+            "agents": [{"id": "agent1", "name": "agent1", "host_port": 42641}],
+        }
+
+        with self.assertRaises(ConfigError) as context:
+            self.validator.ensure_valid_for_start(config, config["agents"][0])
+
+        self.assertEqual(context.exception.code, "validation_failed")
+
+
+def copy_config(config: dict) -> dict:
+    return yaml.safe_load(yaml.safe_dump(config))
 
 
 if __name__ == "__main__":

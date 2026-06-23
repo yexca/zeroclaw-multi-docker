@@ -16,9 +16,11 @@ from urllib.request import Request, urlopen
 try:
     from agent_renderer import AgentRenderer
     from config_store import ConfigError, item_id, redact
+    from config_validator import ConfigValidator
 except ModuleNotFoundError:  # pragma: no cover - package import path for tests
     from .agent_renderer import AgentRenderer
     from .config_store import ConfigError, item_id, redact
+    from .config_validator import ConfigValidator
 
 
 MANAGER_LABEL = "zeroclaw.manager"
@@ -110,9 +112,11 @@ class DockerApiController:
         self.project_root = project_root
         self.client = DockerApiClient(docker_api_url, timeout_secs=timeout_secs)
         self.renderer = AgentRenderer(project_root)
+        self.validator = ConfigValidator(project_root)
 
     def start(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
         self.configure_client(config)
+        self.validator.ensure_valid_for_start(config, agent)
         spec = self.build_container_spec(config, agent)
         self.ensure_network(spec.network_name)
         self.pull_image(spec.image)
@@ -162,6 +166,7 @@ class DockerApiController:
 
     def restart(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
         self.configure_client(config)
+        self.validator.ensure_valid_for_start(config, agent)
         start_result = self.start(config, agent)
         spec = self.build_container_spec(config, agent)
         container = self.require_managed_container(spec)
