@@ -33,7 +33,27 @@
     "title": "Dashboard",
     "subtitle": "Agent runtime state, quick controls, and recent logs.",
     "empty": "No agents are configured yet.",
-    "logsEmpty": "No logs loaded."
+    "logsEmpty": "No logs loaded.",
+    "tail": "Log lines",
+    "autoRefresh": "Auto-refresh"
+  },
+  "observability": {
+    "containerId": "Container ID",
+    "image": "Image",
+    "created": "Created",
+    "started": "Started",
+    "health": "Health",
+    "restartCount": "Restarts",
+    "mappedPort": "Mapped port",
+    "configHash": "Config hash",
+    "containerHash": "Container hash",
+    "rebuild": "Needs rebuild",
+    "latestExport": "Latest export"
+  },
+  "history": {
+    "title": "Operation history",
+    "subtitle": "Recent manager operations, with secrets redacted.",
+    "empty": "No operations recorded yet."
   },
   "agents": {
     "title": "Agent Editor",
@@ -78,6 +98,7 @@
     "stop": "Stop",
     "restart": "Restart",
     "logs": "Logs",
+    "downloadLogs": "Download logs",
     "refreshStatus": "Refresh status",
     "applyTemplate": "Apply template",
     "export": "Export"
@@ -151,7 +172,9 @@
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "enabled": "Enabled",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "yes": "Yes",
+    "no": "No"
   },
   "status": {
     "status": "Status",

@@ -17,6 +17,7 @@ from manager.backend.docker_controller import (
     FakeDockerController,
     decode_docker_log_stream,
 )
+from manager.backend.observability import OperationHistory, normalize_agent_state, redact_lines
 
 
 class ConfigStoreTest(unittest.TestCase):
@@ -260,6 +261,48 @@ class DockerControllerTest(unittest.TestCase):
         frame = b"\x01\x00\x00\x00" + (6).to_bytes(4, "big") + b"hello\n"
 
         self.assertEqual(decode_docker_log_stream(frame), "hello\n")
+
+
+class ObservabilityTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_redact_lines_masks_config_secret_values_and_token_patterns(self) -> None:
+        lines = [
+            "MODEL_PROVIDER_API_KEY=secret-key",
+            "Authorization: Bearer abcdefghijklmnop",
+            "plain line",
+        ]
+        config = {"profiles": {"llm": [{"api_key": "secret-key"}]}}
+
+        redacted = "\n".join(redact_lines(lines, config))
+
+        self.assertNotIn("secret-key", redacted)
+        self.assertNotIn("abcdefghijklmnop", redacted)
+        self.assertIn("[REDACTED]", redacted)
+        self.assertIn("plain line", redacted)
+
+    def test_normalize_agent_state_maps_required_dashboard_states(self) -> None:
+        self.assertEqual(normalize_agent_state({"state": "absent"}), "missing")
+        self.assertEqual(normalize_agent_state({"state": "created"}), "created")
+        self.assertEqual(normalize_agent_state({"state": "running"}), "running")
+        self.assertEqual(normalize_agent_state({"state": "running", "health_status": "unhealthy"}), "unhealthy")
+        self.assertEqual(normalize_agent_state({"state": "exited"}), "stopped")
+        self.assertEqual(normalize_agent_state({"state": "restarting"}), "restarting")
+        self.assertEqual(normalize_agent_state({"error": {"message": "boom"}}), "error")
+
+    def test_operation_history_redacts_results(self) -> None:
+        history = OperationHistory(Path(self.temp_dir.name) / "history.jsonl")
+
+        history.append("start", agent_id="agent1", result={"api_key": "secret", "state": "running"})
+        entries = history.list()
+
+        self.assertEqual(entries[0]["operation"], "start")
+        self.assertEqual(entries[0]["agent_id"], "agent1")
+        self.assertEqual(entries[0]["result"]["api_key"], "[REDACTED]")
 
 
 class AgentRendererTest(unittest.TestCase):

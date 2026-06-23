@@ -33,7 +33,27 @@
     "title": "仪表盘",
     "subtitle": "查看智能体运行状态、快捷控制和近期日志。",
     "empty": "还没有配置智能体。",
-    "logsEmpty": "尚未加载日志。"
+    "logsEmpty": "尚未加载日志。",
+    "tail": "日志行数",
+    "autoRefresh": "自动刷新"
+  },
+  "observability": {
+    "containerId": "容器 ID",
+    "image": "镜像",
+    "created": "创建时间",
+    "started": "启动时间",
+    "health": "健康状态",
+    "restartCount": "重启次数",
+    "mappedPort": "映射端口",
+    "configHash": "配置哈希",
+    "containerHash": "容器哈希",
+    "rebuild": "需要重建",
+    "latestExport": "最近导出"
+  },
+  "history": {
+    "title": "操作历史",
+    "subtitle": "最近的管理器操作，已脱敏。",
+    "empty": "还没有操作记录。"
   },
   "agents": {
     "title": "智能体编辑器",
@@ -78,6 +98,7 @@
     "stop": "停止",
     "restart": "重启",
     "logs": "日志",
+    "downloadLogs": "下载日志",
     "refreshStatus": "刷新状态",
     "applyTemplate": "应用模板",
     "export": "导出"
@@ -151,7 +172,9 @@
     "unknown": "未知",
     "unnamed": "未命名",
     "enabled": "已启用",
-    "disabled": "已禁用"
+    "disabled": "已禁用",
+    "yes": "是",
+    "no": "否"
   },
   "status": {
     "status": "状态",

@@ -148,12 +148,22 @@ p {
 }
 
 .control,
-.field {
+.field,
+.inline-control {
   display: grid;
   gap: 6px;
   color: var(--color-subtle);
   font-size: 13px;
   font-weight: 700;
+}
+
+.inline-control {
+  grid-template-columns: auto 88px;
+  align-items: center;
+}
+
+.inline-check {
+  grid-column: auto;
 }
 
 .compact-control {
@@ -276,6 +286,19 @@ textarea {
   padding: 4px 8px;
   font-size: 12px;
   font-weight: 700;
+}
+
+.status-pill.state-running {
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.status-pill.state-error,
+.status-pill.state-unhealthy {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .data-list {
@@ -407,6 +430,32 @@ dd {
   font-weight: 700;
 }
 
+.history-panel {
+  margin-top: 18px;
+}
+
+.section-header.compact {
+  margin-bottom: 10px;
+}
+
+.history-list {
+  display: grid;
+  gap: 6px;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(120px, 1fr) minmax(100px, 1fr) minmax(70px, 100px);
+  gap: 10px;
+  border-top: 1px solid var(--color-border-soft);
+  padding-top: 8px;
+  color: var(--color-muted);
+}
+
+.history-row strong {
+  color: var(--color-text);
+}
+
 .notice.muted {
   color: var(--color-subtle);
 }
@@ -478,7 +527,8 @@ dd {
   }
 
   .button,
-  .compact-control {
+  .compact-control,
+  .inline-control {
     width: 100%;
   }
 
@@ -490,5 +540,9 @@ dd {
   .data-list div {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+
+  .history-row {
+    grid-template-columns: 1fr;
   }
 }

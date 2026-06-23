@@ -219,15 +219,20 @@ class DockerApiController:
                 "agent_id": spec.agent_id,
                 "agent_name": spec.agent_name,
                 "container_name": spec.container_name,
+                "image": spec.image,
+                "host_port": spec.host_port,
+                "network": spec.network_name,
                 "state": "absent",
                 "running": False,
                 "managed": False,
+                "expected_spec_hash": spec.spec_hash,
                 "controller": "docker-api",
                 "checked_at": self._now(),
             }
         managed = self.is_managed_container(container, spec)
         state = container.get("State", {})
         config_labels = container.get("Config", {}).get("Labels") or {}
+        health = state.get("Health") if isinstance(state.get("Health"), dict) else {}
         return {
             "agent_id": spec.agent_id,
             "agent_name": spec.agent_name,
@@ -236,10 +241,16 @@ class DockerApiController:
             "image": container.get("Config", {}).get("Image"),
             "state": state.get("Status") or "unknown",
             "running": bool(state.get("Running")),
+            "created_at": container.get("Created"),
+            "started_at": state.get("StartedAt"),
+            "finished_at": state.get("FinishedAt"),
+            "health_status": health.get("Status") or "",
+            "restart_count": container.get("RestartCount", 0),
             "managed": managed,
             "needs_recreate": managed and self.needs_recreate(container, spec),
             "spec_hash": config_labels.get(SPEC_HASH_LABEL),
             "expected_spec_hash": spec.spec_hash,
+            "host_port": spec.host_port,
             "ports": container.get("NetworkSettings", {}).get("Ports") or {},
             "controller": "docker-api",
             "checked_at": self._now(),
@@ -262,6 +273,7 @@ class DockerApiController:
             "container_name": spec.container_name,
             "controller": "docker-api",
             "tail": tail,
+            "fetched_at": self._now(),
             "lines": text.splitlines(),
         }
 
@@ -490,6 +502,8 @@ class FakeDockerController:
             "controller": "fake",
             "docker_api_url": self.docker_api_url,
             "checked_at": self._now(),
+            "health_status": "",
+            "restart_count": 0,
             "details": {
                 "message": "Docker status is stubbed.",
             },
@@ -500,6 +514,7 @@ class FakeDockerController:
             "agent_id": self._agent_id(agent),
             "controller": "fake",
             "tail": tail,
+            "fetched_at": self._now(),
             "lines": [],
             "details": {
                 "message": "Docker logs are stubbed.",

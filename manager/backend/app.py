@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 
 from config_store import ConfigError, ConfigStore, redact, to_json
 from docker_controller import DockerApiError, build_controller_from_env
+from observability import agent_identifier, enrich_status, history_from_env, redact_lines, redact_text, utc_now
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +33,7 @@ def build_store() -> ConfigStore:
 
 STORE = build_store()
 DOCKER = build_controller_from_env(REPO_ROOT)
+HISTORY = history_from_env(STORE.generated_dir)
 
 
 def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -41,6 +43,17 @@ def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def text_response(handler: BaseHTTPRequestHandler, status: int, body: str, filename: str | None = None) -> None:
+    encoded = body.encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    handler.send_header("Content-Length", str(len(encoded)))
+    if filename:
+        handler.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+    handler.end_headers()
+    handler.wfile.write(encoded)
 
 
 def success(handler: BaseHTTPRequestHandler, status: int, data: object, meta: dict | None = None) -> None:
@@ -125,12 +138,20 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 self,
                 200,
                 {
-                    "stage": "docker-api-runtime",
+                    "stage": "observability-and-logs",
                     "dockerApiUrl": os.getenv("DOCKER_API_URL", ""),
                     "managerConfigPath": str(STORE.config_path),
                     "generatedConfigDir": str(STORE.generated_dir),
                 },
             )
+            return
+
+        if method == "GET" and path == "/api/dashboard":
+            success(self, 200, self.build_dashboard())
+            return
+
+        if method == "GET" and path == "/api/history":
+            success(self, 200, HISTORY.list(limit=self.parse_limit(query, default=100, maximum=500)))
             return
 
         if method == "GET" and path == "/api/webui/defaults":
@@ -145,7 +166,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if method == "PUT":
                 payload = self.read_json()
                 print(f"config write requested: {to_json(payload)}", file=sys.stderr, flush=True)
-                success(self, 200, STORE.update_full_config(payload))
+                result = STORE.update_full_config(payload)
+                HISTORY.append("reconcile", result=result)
+                success(self, 200, result)
                 return
 
         if path == "/api/config/validate" and method in {"GET", "POST"}:
@@ -153,7 +176,11 @@ class ManagerHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/export" and method == "POST":
-            success(self, 200, STORE.export(self.read_optional_json()))
+            payload = self.read_optional_json()
+            result = STORE.export(payload)
+            agent_id = str(payload.get("agent")) if isinstance(payload, dict) and payload.get("agent") else ""
+            HISTORY.append("export", agent_id=agent_id, result=result)
+            success(self, 200, result)
             return
 
         if len(segments) >= 3 and segments[:2] == ["api", "profiles"]:
@@ -219,7 +246,20 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 delete_instance_dir = self.parse_bool((query.get("delete_instance_dir") or ["false"])[0])
                 if isinstance(payload, dict) and "delete_instance_dir" in payload:
                     delete_instance_dir = bool(payload["delete_instance_dir"])
-                success(self, 200, STORE.delete_agent(identifier, delete_instance_dir=delete_instance_dir))
+                result = STORE.delete_agent(identifier, delete_instance_dir=delete_instance_dir)
+                HISTORY.append("delete", agent_id=identifier, result=result)
+                success(self, 200, result)
+                return
+
+        if len(segments) == 3:
+            identifier, action, subaction = segments
+            if method == "GET" and action == "logs" and subaction == "download":
+                config = STORE.load()
+                agent = STORE.get_agent(identifier)
+                tail = self.parse_tail(query)
+                logs = DOCKER.logs(config, agent, tail=tail)
+                lines = redact_lines(logs.get("lines") or [], config)
+                text_response(self, 200, "\n".join(lines) + ("\n" if lines else ""), filename=f"{identifier}.log")
                 return
 
         if len(segments) == 2:
@@ -230,15 +270,21 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 success(self, 200, STORE.validate_agent(identifier))
                 return
             if method == "POST" and action == "apply-template":
-                success(self, 200, STORE.apply_prompt_template(identifier, self.read_optional_json()))
+                result = STORE.apply_prompt_template(identifier, self.read_optional_json())
+                HISTORY.append("apply-template", agent_id=identifier, result=result)
+                success(self, 200, result)
                 return
             if method == "POST" and action == "export":
                 payload = self.read_optional_json()
                 formats = payload.get("formats") if isinstance(payload, dict) and isinstance(payload.get("formats"), list) else None
-                success(self, 200, STORE.render_agent(identifier, formats=formats))
+                result = STORE.render_agent(identifier, formats=formats)
+                HISTORY.append("export", agent_id=identifier, result=result)
+                success(self, 200, result)
                 return
             if method == "POST" and action in {"start", "stop", "restart", "delete"}:
-                success(self, 202, getattr(DOCKER, action)(config, agent))
+                result = getattr(DOCKER, action)(config, agent)
+                HISTORY.append(action, agent_id=identifier, result=result)
+                success(self, 202, result)
                 return
             if method == "GET" and action == "env":
                 success(self, 200, STORE.render_agent(identifier, formats=["env"]))
@@ -250,20 +296,58 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 success(self, 200, STORE.render_agent(identifier, formats=["zeroclaw_config_preview"]))
                 return
             if method == "GET" and action == "status":
-                success(self, 200, DOCKER.status(config, agent))
+                latest_export = HISTORY.latest_export_time(identifier)
+                success(self, 200, enrich_status(DOCKER.status(config, agent), latest_export_time=latest_export))
                 return
             if method == "GET" and action == "logs":
                 tail = self.parse_tail(query)
-                success(self, 200, DOCKER.logs(config, agent, tail=tail))
+                logs = DOCKER.logs(config, agent, tail=tail)
+                logs["lines"] = redact_lines(logs.get("lines") or [], config)
+                logs["download_url"] = f"/api/agents/{identifier}/logs/download?tail={tail}"
+                success(self, 200, logs)
                 return
 
         error_response(self, 405, "method_not_allowed", "Unsupported agent operation.", {"method": method})
+
+    def build_dashboard(self) -> dict:
+        config = STORE.load()
+        agents = STORE.list_agents()
+        rows = []
+        for agent in agents:
+            identifier = agent_identifier(agent)
+            try:
+                status = DOCKER.status(config, agent)
+            except Exception as exc:  # Keep dashboard useful when one container fails.
+                status = {
+                    "agent_id": identifier,
+                    "agent_name": agent.get("name") or identifier,
+                    "state": "error",
+                    "error": {"type": type(exc).__name__, "message": str(exc)},
+                    "controller": "docker-api",
+                }
+            rows.append(
+                {
+                    "agent": redact(agent),
+                    "status": enrich_status(status, latest_export_time=HISTORY.latest_export_time(identifier)),
+                }
+            )
+        return {
+            "checked_at": utc_now(),
+            "agents": rows,
+            "history": HISTORY.list(limit=25),
+        }
 
     def parse_tail(self, query: dict[str, list[str]]) -> int:
         try:
             return max(1, min(2000, int((query.get("tail") or ["200"])[0])))
         except ValueError:
             return 200
+
+    def parse_limit(self, query: dict[str, list[str]], default: int = 100, maximum: int = 1000) -> int:
+        try:
+            return max(1, min(maximum, int((query.get("limit") or [str(default)])[0])))
+        except ValueError:
+            return default
 
     def parse_bool(self, value: str) -> bool:
         return str(value).lower() in {"1", "true", "yes", "on"}
@@ -274,7 +358,11 @@ class ManagerHandler(BaseHTTPRequestHandler):
             return {}
         body = self.rfile.read(length).decode("utf-8")
         payload = json.loads(body)
-        print(f"{self.command} {self.path} body={json.dumps(redact(payload), sort_keys=True)}", file=sys.stderr, flush=True)
+        print(
+            f"{self.command} {self.path} body={redact_text(json.dumps(redact(payload), sort_keys=True), STORE.load())}",
+            file=sys.stderr,
+            flush=True,
+        )
         return payload
 
     def read_optional_json(self) -> object | None:

@@ -11,8 +11,12 @@ const state = {
   selectedTab: "dashboard",
   selectedAgentId: "",
   selectedTemplateId: "",
+  dashboard: null,
   agentStatuses: {},
   agentLogs: {},
+  logTail: 200,
+  autoRefresh: false,
+  autoRefreshTimer: null,
   busy: false,
   notice: "",
   error: "",
@@ -159,8 +163,16 @@ async function refreshAgentStatus(agentId) {
 }
 
 async function refreshAgentLogs(agentId) {
-  const logs = await api(`/api/agents/${encodeURIComponent(agentId)}/logs?tail=200`);
+  const logs = await api(`/api/agents/${encodeURIComponent(agentId)}/logs?tail=${encodeURIComponent(state.logTail)}`);
   state.agentLogs[agentId] = logs;
+}
+
+async function refreshDashboard() {
+  state.dashboard = await api("/api/dashboard");
+  for (const row of state.dashboard.agents || []) {
+    const id = itemId(row.agent);
+    if (id) state.agentStatuses[id] = row.status;
+  }
 }
 
 function optionList(items, selected, emptyKey) {
@@ -193,6 +205,16 @@ function checkboxField(labelKey, name, checked = false) {
   return `<label class="check-field"><input type="checkbox" name="${name}" ${checked ? "checked" : ""} /><span>${escapeHtml(
     t(labelKey)
   )}</span></label>`;
+}
+
+function shortHash(value) {
+  return value ? String(value).slice(0, 12) : "";
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 }
 
 function selectField(labelKey, name, optionsHtml) {
@@ -247,7 +269,15 @@ function renderDashboard() {
   return `
     <header class="section-header">
       <div><h2>${escapeHtml(t("dashboard.title"))}</h2><p>${escapeHtml(t("dashboard.subtitle"))}</p></div>
-      <div class="button-row">${actionButton("refresh-all-status", "actions.refreshStatus")}</div>
+      <div class="button-row">
+        <label class="inline-control"><span>${escapeHtml(t("dashboard.tail"))}</span><input name="log-tail" type="number" min="1" max="2000" value="${escapeHtml(
+          state.logTail
+        )}" data-log-tail /></label>
+        <label class="check-field inline-check"><input type="checkbox" data-auto-refresh ${state.autoRefresh ? "checked" : ""} /><span>${escapeHtml(
+          t("dashboard.autoRefresh")
+        )}</span></label>
+        ${actionButton("refresh-all-status", "actions.refreshStatus")}
+      </div>
     </header>
     <div class="agent-grid">
       ${
@@ -256,6 +286,7 @@ function renderDashboard() {
           : `<div class="empty-state">${escapeHtml(t("dashboard.empty"))}</div>`
       }
     </div>
+    ${renderHistory()}
   `;
 }
 
@@ -270,10 +301,23 @@ function renderAgentCard(agent) {
           <h3>${escapeHtml(id || t("common.unnamed"))}</h3>
           <p>${escapeHtml(agent.enabled === false ? t("common.disabled") : t("common.enabled"))}</p>
         </div>
-        <span class="status-pill">${escapeHtml(status?.state || t("common.unknown"))}</span>
+        <span class="status-pill state-${escapeHtml(status?.normalized_state || status?.state || "unknown")}">${escapeHtml(
+          status?.normalized_state || status?.state || t("common.unknown")
+        )}</span>
       </header>
       <dl class="data-list">
         <div><dt>${escapeHtml(t("fields.hostPort"))}</dt><dd>${escapeHtml(agent.host_port || "")}</dd></div>
+        <div><dt>${escapeHtml(t("observability.containerId"))}</dt><dd>${escapeHtml(shortHash(status?.container_id))}</dd></div>
+        <div><dt>${escapeHtml(t("observability.image"))}</dt><dd>${escapeHtml(status?.image || agent.image || "")}</dd></div>
+        <div><dt>${escapeHtml(t("observability.created"))}</dt><dd>${escapeHtml(formatDate(status?.created_at))}</dd></div>
+        <div><dt>${escapeHtml(t("observability.started"))}</dt><dd>${escapeHtml(formatDate(status?.started_at))}</dd></div>
+        <div><dt>${escapeHtml(t("observability.health"))}</dt><dd>${escapeHtml(status?.health_status || "")}</dd></div>
+        <div><dt>${escapeHtml(t("observability.restartCount"))}</dt><dd>${escapeHtml(status?.restart_count ?? "")}</dd></div>
+        <div><dt>${escapeHtml(t("observability.mappedPort"))}</dt><dd>${escapeHtml(status?.mapped_port || "")}</dd></div>
+        <div><dt>${escapeHtml(t("observability.configHash"))}</dt><dd>${escapeHtml(shortHash(status?.config_hash))}</dd></div>
+        <div><dt>${escapeHtml(t("observability.containerHash"))}</dt><dd>${escapeHtml(shortHash(status?.container_config_hash))}</dd></div>
+        <div><dt>${escapeHtml(t("observability.rebuild"))}</dt><dd>${escapeHtml(status?.needs_rebuild ? t("common.yes") : t("common.no"))}</dd></div>
+        <div><dt>${escapeHtml(t("observability.latestExport"))}</dt><dd>${escapeHtml(formatDate(status?.latest_export_time))}</dd></div>
         <div><dt>${escapeHtml(t("fields.model"))}</dt><dd>${escapeHtml(agent.model?.model || agent.llm_profile || "")}</dd></div>
         <div><dt>${escapeHtml(t("fields.matrixUser"))}</dt><dd>${escapeHtml(agent.matrix?.user_id || "")}</dd></div>
         <div><dt>${escapeHtml(t("fields.mcpStatus"))}</dt><dd>${escapeHtml(agent.mcp_profile || t("common.none"))}</dd></div>
@@ -283,12 +327,36 @@ function renderAgentCard(agent) {
         ${actionButton(`agent-stop:${id}`, "actions.stop")}
         ${actionButton(`agent-restart:${id}`, "actions.restart")}
         ${actionButton(`agent-logs:${id}`, "actions.logs")}
+        ${actionButton(`agent-download-logs:${id}`, "actions.downloadLogs")}
         ${actionButton(`agent-edit:${id}`, "actions.edit")}
         ${actionButton(`agent-delete:${id}`, "actions.delete", "danger")}
       </div>
       <pre class="log-viewer">${escapeHtml(formatLogs(logs, status))}</pre>
     </article>
   `;
+}
+
+function renderHistory() {
+  const history = state.dashboard?.history || [];
+  return `<section class="history-panel">
+    <header class="section-header compact"><div><h3>${escapeHtml(t("history.title"))}</h3><p>${escapeHtml(
+      t("history.subtitle")
+    )}</p></div></header>
+    ${
+      history.length
+        ? `<div class="history-list">${history
+            .map(
+              (entry) => `<div class="history-row">
+                <span>${escapeHtml(formatDate(entry.timestamp))}</span>
+                <strong>${escapeHtml(entry.operation || "")}</strong>
+                <span>${escapeHtml(entry.agent_id || t("common.none"))}</span>
+                <span>${escapeHtml(entry.status || "")}</span>
+              </div>`
+            )
+            .join("")}</div>`
+        : `<div class="empty-state">${escapeHtml(t("history.empty"))}</div>`
+    }
+  </section>`;
 }
 
 function formatLogs(logs, status) {
@@ -643,6 +711,11 @@ async function handleAction(action) {
   if (action.startsWith("agent-stop:")) return controlAgent(action.split(":")[1], "stop");
   if (action.startsWith("agent-restart:")) return controlAgent(action.split(":")[1], "restart");
   if (action.startsWith("agent-logs:")) return runAction(() => refreshAgentLogs(action.split(":")[1]));
+  if (action.startsWith("agent-download-logs:")) {
+    const id = action.split(":")[1];
+    window.location.href = `/api/agents/${encodeURIComponent(id)}/logs/download?tail=${encodeURIComponent(state.logTail)}`;
+    return;
+  }
   if (action.startsWith("agent-edit:")) {
     state.selectedTab = "agents";
     state.selectedAgentId = action.split(":")[1];
@@ -652,7 +725,10 @@ async function handleAction(action) {
   if (action.startsWith("agent-delete:")) return deleteAgent(action.split(":")[1]);
 
   if (action === "refresh-all-status") {
-    return runAction(async () => Promise.all(collection("agents").map((agent) => refreshAgentStatus(itemId(agent)))));
+    return runAction(async () => {
+      await refreshDashboard();
+      await Promise.all(collection("agents").map((agent) => refreshAgentLogs(itemId(agent))));
+    });
   }
   if (action === "agent-new") {
     state.selectedAgentId = "";
@@ -835,6 +911,34 @@ function bindEvents() {
   });
 
   document.addEventListener("submit", (event) => event.preventDefault());
+
+  document.addEventListener("change", (event) => {
+    if (event.target.matches("[data-log-tail]")) {
+      state.logTail = Math.max(1, Math.min(2000, parseNumber(event.target.value, 200)));
+      render();
+    }
+    if (event.target.matches("[data-auto-refresh]")) {
+      state.autoRefresh = event.target.checked;
+      configureAutoRefresh();
+      render();
+    }
+  });
+}
+
+function configureAutoRefresh() {
+  if (state.autoRefreshTimer) window.clearInterval(state.autoRefreshTimer);
+  state.autoRefreshTimer = null;
+  if (!state.autoRefresh) return;
+  state.autoRefreshTimer = window.setInterval(async () => {
+    try {
+      await refreshDashboard();
+      await Promise.all(Object.keys(state.agentLogs).map((agentId) => refreshAgentLogs(agentId)));
+      render();
+    } catch (error) {
+      state.error = error.message || String(error);
+      render();
+    }
+  }, 10000);
 }
 
 async function main() {
@@ -866,7 +970,7 @@ async function main() {
 
   bindEvents();
   await refreshConfig();
-  await Promise.all(collection("agents").map((agent) => refreshAgentStatus(itemId(agent))));
+  await refreshDashboard();
   render();
 }
 
