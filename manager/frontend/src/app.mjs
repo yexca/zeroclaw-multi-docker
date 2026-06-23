@@ -273,7 +273,18 @@ function fieldDisplayName(name) {
     num_predict: t("fields.numPredict"),
     temperature_override: t("fields.temperatureOverride"),
     homeserver: t("fields.homeserver"),
+    user_id: t("fields.matrixUser"),
+    device_id: t("fields.deviceId"),
+    access_token: t("fields.accessToken"),
+    password: t("fields.password"),
+    recovery_key: t("fields.recoveryKey"),
     stream_mode: t("fields.streamMode"),
+    multi_message_delay_ms: t("fields.multiMessageDelayMs"),
+    channel_debounce_ms: t("fields.channelDebounceMs"),
+    draft_update_interval_ms: t("fields.draftUpdateIntervalMs"),
+    approval_timeout_secs: t("fields.approvalTimeoutSecs"),
+    reply_min_interval_secs: t("fields.replyMinIntervalSecs"),
+    reply_queue_depth_max: t("fields.replyQueueDepthMax"),
     server_name: t("fields.serverName"),
     transport: t("fields.transport"),
     url: t("fields.url")
@@ -472,6 +483,17 @@ function booleanOptions(selected) {
   );
 }
 
+function streamModeOptions(selected) {
+  return optionsFromPairs(
+    [
+      ["off", "off"],
+      ["partial", "partial"],
+      ["multi_message", "multi_message"]
+    ],
+    selected || "off"
+  );
+}
+
 function llmFamily(item) {
   return item.provider_family || item.family || item.kind || "openai";
 }
@@ -494,29 +516,39 @@ function isProviderVisible(item, families) {
   return families.includes(llmFamily(item));
 }
 
-function labelText(labelKey, attrs = "") {
+function labelText(labelKey, attrs = "", helpKey = "") {
   const required = /\brequired\b/.test(attrs);
-  return `<span>${escapeHtml(t(labelKey))}${required ? ' <b class="required-mark">*</b>' : ""}</span>`;
+  const help = helpKey ? t(helpKey) : "";
+  return `<span ${help ? `title="${escapeHtml(help)}"` : ""}>${escapeHtml(t(labelKey))}${required ? ' <b class="required-mark">*</b>' : ""}</span>`;
 }
 
-function field(labelKey, name, value = "", attrs = "") {
-  return `<label class="field">${labelText(labelKey, attrs)}<input name="${name}" value="${escapeHtml(
+function helpText(helpKey) {
+  return helpKey ? escapeHtml(t(helpKey)) : "";
+}
+
+function field(labelKey, name, value = "", attrs = "", helpKey = "") {
+  const help = helpText(helpKey);
+  const placeholder = help && !/\bplaceholder=/.test(attrs) ? `placeholder="${help}" title="${help}"` : "";
+  return `<label class="field">${labelText(labelKey, attrs, helpKey)}<input name="${name}" value="${escapeHtml(
     value
-  )}" ${attrs} /></label>`;
+  )}" ${attrs} ${placeholder} /></label>`;
 }
 
-function passwordField(labelKey, name, value = "") {
-  return field(labelKey, name, value ? "••••••••" : "", `type="password" autocomplete="new-password" data-secret="true"`);
+function passwordField(labelKey, name, value = "", helpKey = "") {
+  return field(labelKey, name, value ? "••••••••" : "", `type="password" autocomplete="new-password" data-secret="true"`, helpKey);
 }
 
-function textareaField(labelKey, name, value = "", attrs = "") {
-  return `<label class="field field-wide">${labelText(labelKey, attrs)}<textarea name="${name}" ${attrs}>${escapeHtml(
+function textareaField(labelKey, name, value = "", attrs = "", helpKey = "") {
+  const help = helpText(helpKey);
+  const placeholder = help && !/\bplaceholder=/.test(attrs) ? `placeholder="${help}" title="${help}"` : "";
+  return `<label class="field field-wide">${labelText(labelKey, attrs, helpKey)}<textarea name="${name}" ${attrs}>${escapeHtml(
     value
-  )}</textarea></label>`;
+  )}</textarea></label>`.replace("<textarea", `<textarea ${placeholder}`);
 }
 
-function checkboxField(labelKey, name, checked = false) {
-  return `<label class="check-field"><input type="checkbox" name="${name}" ${checked ? "checked" : ""} /><span>${escapeHtml(
+function checkboxField(labelKey, name, checked = false, helpKey = "") {
+  const help = helpKey ? t(helpKey) : "";
+  return `<label class="check-field" ${help ? `title="${escapeHtml(help)}"` : ""}><input type="checkbox" name="${name}" ${checked ? "checked" : ""} /><span>${escapeHtml(
     t(labelKey)
   )}</span></label>`;
 }
@@ -531,8 +563,9 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 }
 
-function selectField(labelKey, name, optionsHtml, attrs = "") {
-  return `<label class="field">${labelText(labelKey, attrs)}<select name="${name}" ${attrs}>${optionsHtml}</select></label>`;
+function selectField(labelKey, name, optionsHtml, attrs = "", helpKey = "") {
+  const help = helpText(helpKey);
+  return `<label class="field">${labelText(labelKey, attrs, helpKey)}<select name="${name}" ${attrs} ${help ? `title="${help}"` : ""}>${optionsHtml}</select></label>`;
 }
 
 function actionButton(action, labelKey, variant = "secondary", disabled = false) {
@@ -810,14 +843,16 @@ function renderProfileForm(kind, item) {
   if (kind === "matrix") {
     return `
       <div class="form-grid">
-        ${field("fields.id", "id", itemId(item), "required")}
-        ${field("fields.homeserver", "homeserver", item.homeserver || "")}
-        ${textareaField("fields.allowedRooms", "allowed_rooms", asLines(item.allowed_rooms))}
-        ${checkboxField("fields.mentionOnly", "mention_only", item.mention_only === true)}
-        ${checkboxField("fields.replyInThread", "reply_in_thread", item.reply_in_thread !== false)}
-        ${checkboxField("fields.ackReactions", "ack_reactions", item.ack_reactions !== false)}
-        ${field("fields.streamMode", "stream_mode", item.stream_mode || "off")}
+        ${field("fields.id", "id", itemId(item), "required", "fieldHelp.matrix.id")}
+        ${field("fields.homeserver", "homeserver", item.homeserver || "", "required", "fieldHelp.matrix.homeserver")}
+        ${field("fields.matrixUser", "user_id", item.user_id || "", "", "fieldHelp.matrix.userId")}
+        ${field("fields.deviceId", "device_id", item.device_id || "", "", "fieldHelp.matrix.deviceId")}
+        ${passwordField("fields.password", "password", item.password || "", "fieldHelp.matrix.password")}
+        ${passwordField("fields.recoveryKey", "recovery_key", item.recovery_key || "", "fieldHelp.matrix.recoveryKey")}
+        ${textareaField("fields.allowedRooms", "allowed_rooms", asLines(item.allowed_rooms), "", "fieldHelp.matrix.allowedRooms")}
       </div>
+      ${renderMatrixBehaviorFields(item)}
+      ${renderMatrixAdvancedFields(item)}
       <div class="button-row form-actions">${actionButton("profile-save", "actions.save", "primary")}</div>
     `;
   }
@@ -832,6 +867,57 @@ function renderProfileForm(kind, item) {
       ${checkboxField("fields.deferredLoading", "deferred_loading", item.deferred_loading === true)}
     </div>
     <div class="button-row form-actions">${actionButton("profile-save", "actions.save", "primary")}</div>
+  `;
+}
+
+function renderMatrixBehaviorFields(item) {
+  return `
+    <details class="advanced-panel" open>
+      <summary>${escapeHtml(t("fields.matrixBehavior"))}</summary>
+      <div class="form-grid">
+        ${checkboxField("fields.mentionOnly", "mention_only", item.mention_only === true, "fieldHelp.matrix.mentionOnly")}
+        ${checkboxField("fields.replyInThread", "reply_in_thread", item.reply_in_thread === true, "fieldHelp.matrix.replyInThread")}
+        ${checkboxField("fields.ackReactions", "ack_reactions", item.ack_reactions !== false, "fieldHelp.matrix.ackReactions")}
+        ${checkboxField(
+          "fields.interruptOnNewMessage",
+          "interrupt_on_new_message",
+          item.interrupt_on_new_message === true,
+          "fieldHelp.matrix.interruptOnNewMessage"
+        )}
+        ${selectField("fields.streamMode", "stream_mode", streamModeOptions(item.stream_mode || "multi_message"), "", "fieldHelp.matrix.streamMode")}
+        ${passwordField("fields.accessToken", "access_token", item.access_token || "", "fieldHelp.matrix.accessToken")}
+        ${field(
+          "fields.multiMessageDelayMs",
+          "multi_message_delay_ms",
+          item.multi_message_delay_ms ?? 800,
+          'type="number" min="0"',
+          "fieldHelp.matrix.multiMessageDelayMs"
+        )}
+        ${field("fields.channelDebounceMs", "channel_debounce_ms", item.channel_debounce_ms ?? 0, 'type="number" min="0"', "fieldHelp.matrix.channelDebounceMs")}
+      </div>
+    </details>
+  `;
+}
+
+function renderMatrixAdvancedFields(item) {
+  return `
+    <details class="advanced-panel">
+      <summary>${escapeHtml(t("fields.advanced"))}</summary>
+      <div class="form-grid">
+        ${field(
+          "fields.draftUpdateIntervalMs",
+          "draft_update_interval_ms",
+          item.draft_update_interval_ms ?? "",
+          'type="number" min="50"',
+          "fieldHelp.matrix.draftUpdateIntervalMs"
+        )}
+        ${field("fields.approvalTimeoutSecs", "approval_timeout_secs", item.approval_timeout_secs ?? "", 'type="number" min="1"', "fieldHelp.matrix.approvalTimeoutSecs")}
+        ${textareaField("fields.excludedTools", "excluded_tools", asLines(item.excluded_tools), "", "fieldHelp.matrix.excludedTools")}
+        ${field("fields.replyMinIntervalSecs", "reply_min_interval_secs", item.reply_min_interval_secs ?? "", 'type="number" min="0"', "fieldHelp.matrix.replyMinIntervalSecs")}
+        ${field("fields.replyQueueDepthMax", "reply_queue_depth_max", item.reply_queue_depth_max ?? "", 'type="number" min="0"', "fieldHelp.matrix.replyQueueDepthMax")}
+        ${field("fields.hostIp", "host_ip", item.host_ip || "", "", "fieldHelp.matrix.hostIp")}
+      </div>
+    </details>
   `;
 }
 
@@ -1016,16 +1102,30 @@ function profileFromForm(kind, form) {
     });
   }
   if (kind === "matrix") {
-    return {
+    return cleanEmptyValues({
       ...base,
       id: requireString(data, "id"),
-      homeserver: validateUrlLike(data.get("homeserver"), "homeserver"),
+      homeserver: validateUrlLike(data.get("homeserver"), "homeserver", { required: true }),
+      user_id: String(data.get("user_id") || "").trim(),
+      device_id: String(data.get("device_id") || "").trim(),
+      access_token: keepSecret(data, "access_token", current.access_token),
+      password: keepSecret(data, "password", current.password),
+      recovery_key: keepSecret(data, "recovery_key", current.recovery_key),
       allowed_rooms: fromLines(String(data.get("allowed_rooms") || "")),
       mention_only: data.get("mention_only") === "on",
+      interrupt_on_new_message: data.get("interrupt_on_new_message") === "on",
       reply_in_thread: data.get("reply_in_thread") === "on",
       ack_reactions: data.get("ack_reactions") === "on",
-      stream_mode: String(data.get("stream_mode") || "off")
-    };
+      stream_mode: String(data.get("stream_mode") || "multi_message"),
+      multi_message_delay_ms: parseOptionalNumber(data.get("multi_message_delay_ms"), fieldDisplayName("multi_message_delay_ms"), { min: 0 }),
+      channel_debounce_ms: parseOptionalNumber(data.get("channel_debounce_ms"), fieldDisplayName("channel_debounce_ms"), { min: 0 }),
+      draft_update_interval_ms: parseOptionalNumber(data.get("draft_update_interval_ms"), fieldDisplayName("draft_update_interval_ms"), { min: 50 }),
+      approval_timeout_secs: parseOptionalNumber(data.get("approval_timeout_secs"), fieldDisplayName("approval_timeout_secs"), { min: 1 }),
+      excluded_tools: fromLines(String(data.get("excluded_tools") || "")),
+      reply_min_interval_secs: parseOptionalNumber(data.get("reply_min_interval_secs"), fieldDisplayName("reply_min_interval_secs"), { min: 0 }),
+      reply_queue_depth_max: parseOptionalNumber(data.get("reply_queue_depth_max"), fieldDisplayName("reply_queue_depth_max"), { min: 0 }),
+      host_ip: String(data.get("host_ip") || "").trim()
+    });
   }
   return {
     ...base,

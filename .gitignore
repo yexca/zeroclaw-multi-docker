@@ -1,6 +1,7 @@
 .env
 __pycache__/
 *.py[cod]
+tmp/
 
 # Local WebUI manager configuration. Commit only *.example.yaml files.
 config/manager.yaml

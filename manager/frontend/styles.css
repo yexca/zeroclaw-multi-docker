@@ -452,6 +452,7 @@ dd {
 .check-field {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   color: var(--color-text);
   font-weight: 700;

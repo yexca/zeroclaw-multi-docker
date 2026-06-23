@@ -92,7 +92,7 @@ matrix_stream_mode() {
     printf 'multi_message'
     return
   fi
-  printf '%s' "${MATRIX_STREAM_MODE:-off}"
+  printf '%s' "${MATRIX_STREAM_MODE:-multi_message}"
 }
 
 validate_provider_segment() {
@@ -297,7 +297,7 @@ summarize_video = true
 
 [channels]
 ack_reactions = $(toml_bool "${MATRIX_ACK_REACTIONS:-true}")
-debounce_ms = ${CHANNEL_DEBOUNCE_MS:-3000}
+debounce_ms = ${CHANNEL_DEBOUNCE_MS:-0}
 
 [channels.matrix.home]
 enabled = true
@@ -307,11 +307,15 @@ device_id = "$(toml_escape "${MATRIX_DEVICE_ID:-}")"
 allowed_rooms = $(toml_array_csv_allow_all "${MATRIX_ALLOWED_ROOMS:-}")
 mention_only = $(toml_bool "${MATRIX_MENTION_ONLY:-false}")
 interrupt_on_new_message = $(toml_bool "${MATRIX_INTERRUPT_ON_NEW_MESSAGE:-true}")
-reply_in_thread = $(toml_bool "${MATRIX_REPLY_IN_THREAD:-true}")
+reply_in_thread = $(toml_bool "${MATRIX_REPLY_IN_THREAD:-false}")
 ack_reactions = $(toml_bool "${MATRIX_ACK_REACTIONS:-true}")
 stream_mode = "$(toml_escape "$(matrix_stream_mode)")"
 multi_message_delay_ms = ${MATRIX_MULTI_MESSAGE_DELAY_MS:-800}
-approval_timeout_secs = 3600
+draft_update_interval_ms = ${MATRIX_DRAFT_UPDATE_INTERVAL_MS:-1500}
+approval_timeout_secs = ${MATRIX_APPROVAL_TIMEOUT_SECS:-3600}
+excluded_tools = $(toml_array_csv_allow_all "${MATRIX_EXCLUDED_TOOLS:-}")
+reply_min_interval_secs = ${MATRIX_REPLY_MIN_INTERVAL_SECS:-0}
+reply_queue_depth_max = ${MATRIX_REPLY_QUEUE_DEPTH_MAX:-0}
 recovery_key = "$(toml_escape "$(first_nonempty "${MATRIX_RECOVERY_KEY:-}" "${MATRIX_RECOVER_KEY:-}")")"
 
 [agents.main]

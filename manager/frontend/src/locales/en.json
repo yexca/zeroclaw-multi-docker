@@ -162,7 +162,17 @@
     "token": "Token",
     "deferredLoading": "Deferred loading",
     "description": "Description",
-    "mcpStatus": "MCP status"
+    "mcpStatus": "MCP status",
+    "matrixBehavior": "Common behavior",
+    "interruptOnNewMessage": "Interrupt on new message",
+    "multiMessageDelayMs": "Multi-message delay ms",
+    "channelDebounceMs": "Channel debounce ms",
+    "draftUpdateIntervalMs": "Draft update interval ms",
+    "approvalTimeoutSecs": "Approval timeout seconds",
+    "excludedTools": "Excluded tools",
+    "replyMinIntervalSecs": "Reply min interval seconds",
+    "replyQueueDepthMax": "Reply queue depth max",
+    "hostIp": "Matrix host IP"
   },
   "templateApply": {
     "keep": "Keep existing files",
@@ -215,5 +225,30 @@
     "managerConfigPath": "Manager config path",
     "managerSecretsPath": "Manager secrets path",
     "generatedConfigDir": "Generated config directory"
+  },
+  "fieldHelp": {
+    "matrix": {
+      "id": "Reusable profile ID selected by agents.",
+      "homeserver": "Matrix homeserver URL, such as https://matrix.org or your Synapse server.",
+      "userId": "Bot account MXID. Required for password login and useful for identity checks.",
+      "deviceId": "Stable Matrix device ID. Keep it stable for token-based E2EE sessions; password login can usually leave it blank.",
+      "password": "Recommended login credential. With user ID, ZeroClaw can log in and recover corrupted Matrix state automatically.",
+      "recoveryKey": "E2EE secure backup key. Lets ZeroClaw restore room keys and cross-sign the bot device on startup.",
+      "allowedRooms": "Canonical room IDs accepted for inbound messages. Empty allows all rooms the bot has joined; use !room:server, not #aliases.",
+      "mentionOnly": "In group rooms, respond only when the bot is mentioned. Direct messages are still processed.",
+      "replyInThread": "Send replies inside Matrix threads rooted at the triggering message.",
+      "ackReactions": "React while processing and when done, if enabled.",
+      "interruptOnNewMessage": "Cancel an in-flight answer when a newer message arrives for the same conversation.",
+      "streamMode": "off sends one final reply, partial edits a draft, multi_message splits paragraphs into separate messages.",
+      "multiMessageDelayMs": "Delay between paragraph messages when stream mode is multi_message. Default is 800 ms.",
+      "channelDebounceMs": "Global channel debounce delay before dispatching incoming messages. Manager default is 3000 ms.",
+      "accessToken": "Alternative token-based login. Prefer user ID plus password unless you must reuse an existing token.",
+      "draftUpdateIntervalMs": "Minimum edit interval for partial streaming. Native default is 1500 ms.",
+      "approvalTimeoutSecs": "How long Matrix approval prompts wait before auto-denying always-ask tools.",
+      "excludedTools": "Tool names to hide from the model when responding through Matrix, one per line.",
+      "replyMinIntervalSecs": "Outbound pacing floor per Matrix recipient. 0 disables pacing.",
+      "replyQueueDepthMax": "Maximum queued outbound replies when pacing is active. 0 uses the runtime default.",
+      "hostIp": "Host IP exposed to agent containers as matrix-host; usually inherited from Docker settings."
+    }
   }
 }

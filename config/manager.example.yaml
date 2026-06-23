@@ -31,12 +31,12 @@ defaults:
       - "!roomid:matrix.example.com"
     mention_only: false
     interrupt_on_new_message: true
-    reply_in_thread: true
+    reply_in_thread: false
     ack_reactions: true
-    stream_mode: off
+    stream_mode: multi_message
     multi_message: false
     multi_message_delay_ms: 800
-    channel_debounce_ms: 3000
+    channel_debounce_ms: 0
 
 vision:
   model: gpt-4o
@@ -99,12 +99,12 @@ profiles:
         - "!roomid:matrix.example.com"
       mention_only: false
       interrupt_on_new_message: true
-      reply_in_thread: true
+      reply_in_thread: false
       ack_reactions: true
-      stream_mode: off
+      stream_mode: multi_message
       multi_message: false
       multi_message_delay_ms: 800
-      channel_debounce_ms: 3000
+      channel_debounce_ms: 0
   mcp:
     - id: mcp-home
       enabled: false

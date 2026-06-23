@@ -162,7 +162,17 @@
     "token": "令牌",
     "deferredLoading": "延迟加载",
     "description": "描述",
-    "mcpStatus": "MCP 状态"
+    "mcpStatus": "MCP 状态",
+    "matrixBehavior": "常用行为",
+    "interruptOnNewMessage": "新消息打断回复",
+    "multiMessageDelayMs": "多消息延迟毫秒",
+    "channelDebounceMs": "频道防抖毫秒",
+    "draftUpdateIntervalMs": "草稿更新间隔毫秒",
+    "approvalTimeoutSecs": "审批超时秒数",
+    "excludedTools": "排除工具",
+    "replyMinIntervalSecs": "最小回复间隔秒数",
+    "replyQueueDepthMax": "回复队列最大深度",
+    "hostIp": "Matrix 主机 IP"
   },
   "templateApply": {
     "keep": "保留现有文件",
@@ -215,5 +225,30 @@
     "managerConfigPath": "管理器配置路径",
     "managerSecretsPath": "管理器密钥路径",
     "generatedConfigDir": "生成配置目录"
+  },
+  "fieldHelp": {
+    "matrix": {
+      "id": "可复用的配置 ID，智能体通过它选择 Matrix 配置。",
+      "homeserver": "Matrix homeserver 地址，例如 https://matrix.org 或你的 Synapse 服务。",
+      "userId": "机器人账号的 Matrix ID。密码登录需要它，也用于身份校验。",
+      "deviceId": "稳定的 Matrix 设备 ID。Token 登录和 E2EE 场景要保持稳定；密码登录通常可以留空。",
+      "password": "推荐的登录凭据。配合 Matrix 用户 ID，ZeroClaw 可以登录并自动恢复损坏的 Matrix 本地状态。",
+      "recoveryKey": "E2EE 安全备份恢复密钥。启动时用于恢复房间密钥并交叉签名机器人设备。",
+      "allowedRooms": "允许接收消息的标准房间 ID。留空表示允许机器人已加入的所有房间；使用 !room:server，不要用 #别名。",
+      "mentionOnly": "群聊中只有提及机器人时才回复；私聊仍会处理。",
+      "replyInThread": "把回复发送到以触发消息为根的 Matrix 线程中。",
+      "ackReactions": "启用后，处理中和完成时会发送反应标记。",
+      "interruptOnNewMessage": "同一会话里有新消息时，取消正在生成的旧回复。",
+      "streamMode": "off 发送完整回复，partial 编辑草稿消息，multi_message 按段落拆成多条消息。",
+      "multiMessageDelayMs": "stream_mode 为 multi_message 时，每段消息之间的延迟。默认 800 毫秒。",
+      "channelDebounceMs": "分发传入消息前的频道防抖延迟。管理器默认 3000 毫秒。",
+      "accessToken": "备选的 Token 登录方式。除非必须复用现有 Token，否则优先使用用户 ID 加密码。",
+      "draftUpdateIntervalMs": "partial 流式模式下草稿消息的最小编辑间隔。原生默认 1500 毫秒。",
+      "approvalTimeoutSecs": "Matrix 审批提示等待多久后自动拒绝 always-ask 工具。",
+      "excludedTools": "通过 Matrix 响应时对模型隐藏的工具名，每行一个。",
+      "replyMinIntervalSecs": "每个 Matrix 接收者的出站回复最小间隔。0 表示禁用节流。",
+      "replyQueueDepthMax": "启用节流时最多排队的出站回复数。0 使用运行时默认值。",
+      "hostIp": "暴露给智能体容器的 matrix-host IP；通常继承 Docker 设置。"
+    }
   }
 }

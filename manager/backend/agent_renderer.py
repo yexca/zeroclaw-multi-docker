@@ -146,12 +146,17 @@ class AgentRenderer:
             "MATRIX_ALLOWED_ROOMS": join_value(matrix.get("allowed_rooms")),
             "MATRIX_MENTION_ONLY": env_value(matrix.get("mention_only", False)),
             "MATRIX_INTERRUPT_ON_NEW_MESSAGE": env_value(matrix.get("interrupt_on_new_message", True)),
-            "MATRIX_REPLY_IN_THREAD": env_value(matrix.get("reply_in_thread", True)),
+            "MATRIX_REPLY_IN_THREAD": env_value(matrix.get("reply_in_thread", False)),
             "MATRIX_ACK_REACTIONS": env_value(matrix.get("ack_reactions", True)),
-            "MATRIX_STREAM_MODE": env_value(matrix.get("stream_mode") or "off"),
+            "MATRIX_STREAM_MODE": env_value(matrix.get("stream_mode") or "multi_message"),
             "MATRIX_MULTI_MESSAGE": env_value(matrix.get("multi_message", False)),
             "MATRIX_MULTI_MESSAGE_DELAY_MS": env_value(matrix.get("multi_message_delay_ms") or 800),
-            "CHANNEL_DEBOUNCE_MS": env_value(matrix.get("channel_debounce_ms") or 3000),
+            "MATRIX_DRAFT_UPDATE_INTERVAL_MS": env_value(matrix.get("draft_update_interval_ms") or 1500),
+            "MATRIX_APPROVAL_TIMEOUT_SECS": env_value(matrix.get("approval_timeout_secs") or 3600),
+            "MATRIX_EXCLUDED_TOOLS": join_value(matrix.get("excluded_tools")),
+            "MATRIX_REPLY_MIN_INTERVAL_SECS": env_value(matrix.get("reply_min_interval_secs") or 0),
+            "MATRIX_REPLY_QUEUE_DEPTH_MAX": env_value(matrix.get("reply_queue_depth_max") or 0),
+            "CHANNEL_DEBOUNCE_MS": env_value(matrix.get("channel_debounce_ms") if matrix.get("channel_debounce_ms") is not None else 0),
             "ZEROCLAW_channels__matrix__home__access_token": env_value(matrix.get("access_token") or ""),
             "ZEROCLAW_channels__matrix__home__password": env_value(matrix.get("password") or ""),
             "MCP_ENABLED": env_value(mcp.get("enabled", False)),
@@ -368,10 +373,18 @@ enabled = true
 homeserver = "{toml_escape(env.get('MATRIX_HOMESERVER', ''))}"
 user_id = "{toml_escape(env.get('MATRIX_USER_ID', ''))}"
 device_id = "{toml_escape(env.get('MATRIX_DEVICE_ID', ''))}"
+allowed_rooms = {toml_csv_array(env.get('MATRIX_ALLOWED_ROOMS', ''))}
 mention_only = {toml_bool(env.get('MATRIX_MENTION_ONLY', 'false'))}
-reply_in_thread = {toml_bool(env.get('MATRIX_REPLY_IN_THREAD', 'true'))}
+interrupt_on_new_message = {toml_bool(env.get('MATRIX_INTERRUPT_ON_NEW_MESSAGE', 'true'))}
+reply_in_thread = {toml_bool(env.get('MATRIX_REPLY_IN_THREAD', 'false'))}
 ack_reactions = {toml_bool(env.get('MATRIX_ACK_REACTIONS', 'true'))}
-stream_mode = "{toml_escape(env.get('MATRIX_STREAM_MODE', 'off'))}"
+stream_mode = "{toml_escape(env.get('MATRIX_STREAM_MODE', 'multi_message'))}"
+multi_message_delay_ms = {env.get('MATRIX_MULTI_MESSAGE_DELAY_MS', '800')}
+draft_update_interval_ms = {env.get('MATRIX_DRAFT_UPDATE_INTERVAL_MS', '1500')}
+approval_timeout_secs = {env.get('MATRIX_APPROVAL_TIMEOUT_SECS', '3600')}
+excluded_tools = {toml_csv_array(env.get('MATRIX_EXCLUDED_TOOLS', ''))}
+reply_min_interval_secs = {env.get('MATRIX_REPLY_MIN_INTERVAL_SECS', '0')}
+reply_queue_depth_max = {env.get('MATRIX_REPLY_QUEUE_DEPTH_MAX', '0')}
 recovery_key = "{toml_escape(env.get('MATRIX_RECOVERY_KEY', ''))}"
 
 [agents.main]
@@ -491,6 +504,11 @@ def join_value(value: Any) -> str:
     if isinstance(value, (list, tuple, set)):
         return ",".join(str(item) for item in value)
     return str(value)
+
+
+def toml_csv_array(value: str) -> str:
+    items = [item.strip() for item in str(value or "").split(",") if item.strip()]
+    return "[" + ", ".join(f'"{toml_escape(item)}"' for item in items) + "]"
 
 
 def safe_name_part(value: str) -> str:
