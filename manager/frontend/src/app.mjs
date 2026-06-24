@@ -1209,17 +1209,26 @@ function renderAgentEditor() {
   return `
     <header class="section-header">
       <div><h2>${escapeHtml(t("agents.title"))}</h2><p>${escapeHtml(t("agents.subtitle"))}</p></div>
-      <div class="button-row">
-        ${actionButton("agent-new", "actions.create", "primary")}
-        ${actionButton("agent-duplicate", "actions.duplicate", "secondary", !agent)}
-        ${actionButton("agent-delete-current", "actions.delete", "danger", !agent)}
-      </div>
     </header>
     <div class="split">
-      <aside class="list-panel">${renderItemList("agents", collection("agents"), state.selectedAgentId)}</aside>
+      ${renderListPanel(
+        "agents",
+        collection("agents"),
+        state.selectedAgentId,
+        `${actionButton("agent-new", "actions.create", "primary")}
+         ${actionButton("agent-duplicate", "actions.duplicate", "secondary", !agent)}
+         ${actionButton("agent-delete-current", "actions.delete", "danger", !agent)}`
+      )}
       <form class="form-panel" data-form="agent">${agent ? renderAgentForm(agent) : renderEmptyEditor("agents.empty")}</form>
     </div>
   `;
+}
+
+function renderListPanel(kind, items, selectedId, actionsHtml = "") {
+  return `<aside class="list-panel">
+    ${actionsHtml ? `<div class="list-panel-actions">${actionsHtml}</div>` : ""}
+    <div class="list-panel-items">${renderItemList(kind, items, selectedId)}</div>
+  </aside>`;
 }
 
 function renderItemList(kind, items, selectedId) {
@@ -1338,13 +1347,15 @@ function renderProfileManager(kind) {
   return `
     <header class="section-header">
       <div><h2>${escapeHtml(t(`${kind}.title`))}</h2><p>${escapeHtml(t(`${kind}.subtitle`))}</p></div>
-      <div class="button-row">
-        ${actionButton(`${kind}-new`, "actions.create", "primary")}
-        ${actionButton(`${kind}-delete-current`, "actions.delete", "danger", !selected)}
-      </div>
     </header>
     <div class="split">
-      <aside class="list-panel">${renderItemList(kind, items, state[`selected${kind}Id`])}</aside>
+      ${renderListPanel(
+        kind,
+        items,
+        state[`selected${kind}Id`],
+        `${actionButton(`${kind}-new`, "actions.create", "primary")}
+         ${actionButton(`${kind}-delete-current`, "actions.delete", "danger", !selected)}`
+      )}
       <form class="form-panel" data-form="${kind}">${selected ? renderProfileForm(kind, selected) : renderEmptyEditor(`${kind}.empty`)}</form>
     </div>
   `;
@@ -1495,11 +1506,6 @@ function renderPromptTemplates() {
   return `
     <header class="section-header">
       <div><h2>${escapeHtml(t("prompts.title"))}</h2><p>${escapeHtml(t("prompts.subtitle"))}</p></div>
-      <div class="button-row">
-        ${actionButton("template-new", "actions.create", "primary")}
-        ${actionButton("template-duplicate", "actions.duplicate", "secondary", !template)}
-        ${actionButton("template-delete-current", "actions.delete", "danger", !template)}
-      </div>
     </header>
     <details class="info-panel prompt-order">
       <summary>
@@ -1511,7 +1517,14 @@ function renderPromptTemplates() {
       <p>${escapeHtml(t("prompts.customNote"))}</p>
     </details>
     <div class="split wide">
-      <aside class="list-panel">${renderItemList("templates", collection("prompt_templates"), state.selectedTemplateId)}</aside>
+      ${renderListPanel(
+        "templates",
+        collection("prompt_templates"),
+        state.selectedTemplateId,
+        `${actionButton("template-new", "actions.create", "primary")}
+         ${actionButton("template-duplicate", "actions.duplicate", "secondary", !template)}
+         ${actionButton("template-delete-current", "actions.delete", "danger", !template)}`
+      )}
       <form class="form-panel" data-form="template">${template ? renderTemplateForm(template) : renderEmptyEditor("prompts.empty")}</form>
     </div>
   `;
