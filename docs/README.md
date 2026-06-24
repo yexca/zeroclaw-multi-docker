@@ -1,4 +1,4 @@
-# ZeroClaw Multi Docker Documentation
+# ZeroClaw Dockyard Documentation
 
 This documentation is organized by user intent:
 
@@ -10,8 +10,8 @@ This documentation is organized by user intent:
 
 ## New Operators
 
-- [Quickstart](getting-started/quickstart.md): copy local config, start the
-  manager, and open the WebUI.
+- [Quickstart](getting-started/quickstart.md): start the manager, open the
+  WebUI, and create configuration there.
 - [WebUI Usage](guides/webui-usage.md): daily workflows for agents, profiles,
   templates, exports, and troubleshooting.
 

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: manager/frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: python -m pip install -r manager/backend/requirements.txt
+
+      - name: Install frontend dependencies
+        working-directory: manager/frontend
+        run: npm ci
+
+      - name: Check Compose config
+        run: docker compose config --quiet
+
+      - name: Run backend tests
+        run: python -m unittest discover manager/backend/tests
+
+      - name: Run frontend checks
+        run: |
+          node --check manager/frontend/src/app.mjs
+          node -e "JSON.parse(require('fs').readFileSync('manager/frontend/src/locales/en.json','utf8')); JSON.parse(require('fs').readFileSync('manager/frontend/src/locales/zh-CN.json','utf8'));"
+          node manager/frontend/tests/ui-foundation.test.mjs
+
+      - name: Build Docker image
+        run: docker build -t yexca/zeroclaw-dockyard:test ./manager

@@ -422,7 +422,7 @@ class DockerApiController:
         defaults = config.get("defaults") if isinstance(config.get("defaults"), dict) else {}
 
         image = str(resolved.get("image") or defaults.get("zeroclaw_image") or os.getenv("ZEROCLAW_IMAGE") or DEFAULT_IMAGE)
-        project_name = str(docker_config.get("project_name") or "zeroclaw-matrix-multi")
+        project_name = str(docker_config.get("project_name") or "zeroclaw-dockyard")
         network_name = str(docker_config.get("runtime_network") or f"{project_name}_default")
         storage_driver = str(docker_config.get("storage_driver") or "volume").lower()
         if storage_driver not in {"volume", "bind"}:
@@ -494,7 +494,7 @@ class DockerApiController:
         docker_config = config.get("docker") if isinstance(config.get("docker"), dict) else {}
         paths = config.get("paths") if isinstance(config.get("paths"), dict) else {}
         manager_mounts = self.manager_mount_sources()
-        project_name = str(docker_config.get("project_name") or "zeroclaw-matrix-multi")
+        project_name = str(docker_config.get("project_name") or "zeroclaw-dockyard")
         network_name = str(docker_config.get("runtime_network") or f"{project_name}_default")
         project_root = Path(str(paths.get("host_project_dir") or os.getenv("HOST_PROJECT_DIR") or self.project_root)).resolve()
         storage_driver = agent_spec.storage_driver
@@ -589,7 +589,7 @@ class DockerApiController:
     def manager_mount_sources(self) -> dict[str, str]:
         if self._manager_mounts is not None:
             return self._manager_mounts
-        container_name = os.getenv("MANAGER_CONTAINER_NAME", "zeroclaw-manager")
+        container_name = os.getenv("MANAGER_CONTAINER_NAME", "zeroclaw-dockyard")
         try:
             container = self.client.request("GET", f"/containers/{quote(container_name, safe='')}/json")
         except DockerApiError:
@@ -700,7 +700,7 @@ class DockerApiController:
             "Labels": {MANAGER_LABEL: "true", AGENT_ID_LABEL: spec.agent_id, AGENT_NAME_LABEL: spec.agent_name, ROLE_LABEL: "sync"},
             "HostConfig": {
                 "AutoRemove": False,
-                "VolumesFrom": ["zeroclaw-manager:rw"],
+                "VolumesFrom": ["zeroclaw-dockyard:rw"],
                 "Mounts": [{"Type": "volume", "Source": spec.volume_name, "Target": "/volume"}],
             },
         }
@@ -734,7 +734,7 @@ class DockerApiController:
             "Labels": {MANAGER_LABEL: "true", AGENT_ID_LABEL: spec.agent_id, AGENT_NAME_LABEL: spec.agent_name, ROLE_LABEL: "sync"},
             "HostConfig": {
                 "AutoRemove": False,
-                "VolumesFrom": ["zeroclaw-manager:rw"],
+                "VolumesFrom": ["zeroclaw-dockyard:rw"],
                 "Mounts": [{"Type": "volume", "Source": spec.volume_name, "Target": "/volume"}],
             },
         }

@@ -82,7 +82,7 @@
     "empty": "创建或选择一个提示词模板。",
     "orderTitle": "提示词文件说明",
     "orderSummary": "官方 ZeroClaw 提示词文件及读取顺序",
-    "orderSystem": "普通频道对话会从工作区根目录按源码定义的 bootstrap 顺序读取文件。下方文件标签会尽量按这个读取顺序排列。HEARTBEAT.md 也位于工作区根目录，但只供 heartbeat worker 使用，不会注入普通频道提示词。PROACTIVE.md 是 zeroclaw_multi_docker 的可选服务约定，不是官方 ZeroClaw 提示词文件。",
+    "orderSystem": "普通频道对话会从工作区根目录按源码定义的 bootstrap 顺序读取文件。下方文件标签会尽量按这个读取顺序排列。HEARTBEAT.md 也位于工作区根目录，但只供 heartbeat worker 使用，不会注入普通频道提示词。PROACTIVE.md 是 ZeroClaw Dockyard 的可选服务约定，不是官方 ZeroClaw 提示词文件。",
     "orderFlow": "normal channel system prompt:\n  tools/safety/skills/workspace\n  + AGENTS.md\n  + SOUL.md\n  + TOOLS.md\n  + IDENTITY.md\n  + USER.md\n  + BOOTSTRAP.md if it exists\n  + MEMORY.md when memory injection is enabled\n  + current date/runtime/channel capabilities\n\nheartbeat worker:\n  reads HEARTBEAT.md from the workspace root\n  parses lines that start with \"- \" as periodic tasks\n  supports [high], [medium], [low], [paused], [completed] metadata\n\noptional proactive service:\n  may read PROACTIVE.md in this project\n  gives each agent its own outbound rhythm and judgment\n  not read automatically by official ZeroClaw\n\ncustom files:\n  written to the workspace root only\n  not read automatically unless an official file tells the agent to use them",
     "customNote": "这里的默认内容同步自 ZeroClaw 的 personality template preset。{agent}、{user}、{tz}、{comm_style} 等占位符只是起始文本，应用前可以自行修改。",
     "filesLabel": "模板文件",

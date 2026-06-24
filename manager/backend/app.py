@@ -116,7 +116,7 @@ class ManagerHandler(BaseHTTPRequestHandler):
         path = parsed.path
         try:
             if method == "GET" and path == "/healthz":
-                success(self, 200, {"service": "zeroclaw-manager", "status": "ok"})
+                success(self, 200, {"service": "zeroclaw-dockyard", "status": "ok"})
                 return
             if path.startswith("/api/"):
                 self.route_api(method, path, parse_qs(parsed.query))
@@ -138,7 +138,7 @@ class ManagerHandler(BaseHTTPRequestHandler):
         segments = [segment for segment in path.split("/") if segment]
 
         if method == "GET" and path == "/api/health":
-            success(self, 200, {"service": "zeroclaw-manager", "status": "ok"})
+            success(self, 200, {"service": "zeroclaw-dockyard", "status": "ok"})
             return
 
         if method == "GET" and path == "/api/status":

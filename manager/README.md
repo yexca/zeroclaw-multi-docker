@@ -1,4 +1,4 @@
-# ZeroClaw Manager
+# ZeroClaw Dockyard
 
 This directory contains the WebUI manager. The current backend foundation
 provides:

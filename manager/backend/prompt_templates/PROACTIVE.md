@@ -1,6 +1,6 @@
 # PROACTIVE.md
 
-# Optional zeroclaw_multi_docker proactive service notes.
+# Optional ZeroClaw Dockyard proactive service notes.
 #
 # This file is not read automatically by official ZeroClaw.
 # It is a project-level convention for an optional proactive service that can

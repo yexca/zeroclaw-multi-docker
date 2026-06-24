@@ -1,11 +1,11 @@
-# ZeroClaw Multi Docker
+# ZeroClaw Dockyard
 
-用于在一个 Docker Compose 项目中，通过本地 WebUI 创建和管理多个
-ZeroClaw Matrix agent。
+ZeroClaw Dockyard 是一个本地 WebUI 管理器，用于在同一个 Docker Compose
+项目中创建和运行多个 ZeroClaw Matrix agent。
 
-管理器是默认入口。直接运行 `docker compose up -d` 只会启动 WebUI
-管理器和 Docker socket proxy；agent 容器由 WebUI 通过 Docker API
-创建、配置、启动、停止和删除。
+Dockyard 是默认入口。直接运行 `docker compose up -d` 会启动 WebUI 和
+Docker socket proxy；agent 容器由 WebUI 通过 Docker API 创建、配置、启动、
+停止和删除。
 
 管理器镜像会在 Docker 构建阶段编译前端，并由 Python 后端提供静态文件。
 WebUI 会先加载配置编辑界面，再在后台刷新依赖 Docker 的 Dashboard 状态。
@@ -25,15 +25,23 @@ WebUI 会先加载配置编辑界面，再在后台刷新依赖 Docker 的 Dashb
 ## 启动
 
 ```powershell
-Copy-Item config\manager.example.yaml config\manager.yaml
-Copy-Item config\secrets.example.yaml config\secrets.yaml
 docker compose up -d
 ```
 
 打开 `http://127.0.0.1:7652`。
 
-管理器只绑定 `127.0.0.1`，并通过 `docker-socket-proxy` 访问 Docker。
-manager 容器不会直接挂载 `/var/run/docker.sock`。
+管理器配置直接在 WebUI 中创建和编辑。保存后的本地配置和密钥文件会被 Git
+忽略。
+
+默认情况下 Compose 会使用已发布的 `yexca/zeroclaw-dockyard:v0.1.0`
+管理器镜像。如果要从当前源码构建管理器，请运行：
+
+```powershell
+docker compose up -d --build
+```
+
+管理器只绑定 `127.0.0.1`，并通过 `docker-socket-proxy` 访问 Docker。manager
+容器不会直接挂载 `/var/run/docker.sock`。
 
 ## 配置 Agent
 
@@ -102,5 +110,5 @@ node manager/frontend/tests/ui-foundation.test.mjs
 Docker 镜像构建会在 `node:22-alpine` 阶段执行前端构建：
 
 ```powershell
-docker build -t zeroclaw-manager:test ./manager
+docker build -t yexca/zeroclaw-dockyard:test ./manager
 ```

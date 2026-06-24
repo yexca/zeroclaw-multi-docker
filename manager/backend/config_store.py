@@ -59,10 +59,10 @@ def default_config() -> dict[str, Any]:
         },
         "docker": {
             "proxy_url": "http://docker-socket-proxy:2375",
-            "project_name": "zeroclaw-matrix-multi",
-            "control_network": "zeroclaw-matrix-multi_manager-control",
+            "project_name": "zeroclaw-dockyard",
+            "control_network": "zeroclaw-dockyard_manager-control",
             "storage_driver": "volume",
-            "volume_prefix": "zeroclaw-matrix-multi",
+            "volume_prefix": "zeroclaw-dockyard",
         },
         "paths": {
             "secrets_file": "/app/config/secrets.yaml",

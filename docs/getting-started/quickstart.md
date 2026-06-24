@@ -1,6 +1,6 @@
 # Quickstart
 
-ZeroClaw Multi Docker starts only the local manager WebUI and Docker socket
+ZeroClaw Dockyard starts only the local manager WebUI and Docker socket
 proxy. Agent containers are created later from the WebUI.
 
 ## Requirements
@@ -8,15 +8,6 @@ proxy. Agent containers are created later from the WebUI.
 - Docker Desktop or Docker Engine with Compose.
 - PowerShell for the commands below on Windows.
 - Local loopback access to `127.0.0.1:7652`.
-
-## Prepare Local Config
-
-```powershell
-Copy-Item config\manager.example.yaml config\manager.yaml
-Copy-Item config\secrets.example.yaml config\secrets.yaml
-```
-
-Local config and secrets files are ignored by Git.
 
 ## Start The Manager
 
@@ -30,8 +21,15 @@ Open:
 http://127.0.0.1:7652
 ```
 
+By default Compose uses the published `yexca/zeroclaw-dockyard:v0.1.0`
+manager image. Developers who want to build from the local source tree can run
+`docker compose up -d --build`.
+
 The first screen opens the configuration editor before Docker status is loaded,
 so the WebUI stays usable even when Docker status calls are slow.
+
+Create and edit manager configuration from the WebUI. Saved local config and
+secret files are ignored by Git.
 
 ## Create Your First Agent
 

@@ -1,4 +1,4 @@
-name: zeroclaw-matrix-multi
+name: zeroclaw-dockyard
 
 services:
   docker-socket-proxy:
@@ -44,8 +44,9 @@ services:
   manager:
     build:
       context: ./manager
-    image: ${MANAGER_IMAGE:-zeroclaw-manager:local}
-    container_name: zeroclaw-manager
+    image: ${MANAGER_IMAGE:-yexca/zeroclaw-dockyard:v0.1.0}
+    pull_policy: missing
+    container_name: zeroclaw-dockyard
     restart: unless-stopped
     depends_on:
       - docker-socket-proxy

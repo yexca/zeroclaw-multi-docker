@@ -1,4 +1,4 @@
-# ZeroClaw Multi Docker
+# ZeroClaw Dockyard
 
 Local WebUI manager for creating and operating multiple ZeroClaw Matrix agents
 from one Docker Compose project.
@@ -26,12 +26,20 @@ Chinese documentation is available in [README.zh-cn.md](README.zh-cn.md).
 ## Start
 
 ```powershell
-Copy-Item config\manager.example.yaml config\manager.yaml
-Copy-Item config\secrets.example.yaml config\secrets.yaml
 docker compose up -d
 ```
 
 Open `http://127.0.0.1:7652`.
+
+Create and edit manager configuration from the WebUI. Saved local config and
+secret files are ignored by Git.
+
+By default Compose uses the published `yexca/zeroclaw-dockyard:v0.1.0`
+manager image. To build the manager from this source tree instead, run:
+
+```powershell
+docker compose up -d --build
+```
 
 The manager binds to `127.0.0.1` and reaches Docker through
 `docker-socket-proxy`. The manager container does not mount
@@ -104,5 +112,5 @@ node manager/frontend/tests/ui-foundation.test.mjs
 The Docker image build runs the frontend build in a `node:22-alpine` stage:
 
 ```powershell
-docker build -t zeroclaw-manager:test ./manager
+docker build -t yexca/zeroclaw-dockyard:test ./manager
 ```

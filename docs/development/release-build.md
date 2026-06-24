@@ -46,8 +46,21 @@ Run:
 
 ```powershell
 .\tools\release-checks.ps1
-docker build -t zeroclaw-manager:test ./manager
+docker build -t yexca/zeroclaw-dockyard:test ./manager
 ```
 
 The release check validates Compose config, backend tests, frontend syntax,
 locale JSON, and frontend foundation tests.
+
+## Published Images
+
+The release workflow publishes Docker images when a tag matching `v*.*.*` is
+pushed. For example, tag `v0.1.0` publishes:
+
+- `ghcr.io/yexca/zeroclaw-dockyard:v0.1.0`
+- `ghcr.io/yexca/zeroclaw-dockyard:latest`
+- `yexca/zeroclaw-dockyard:v0.1.0`
+- `yexca/zeroclaw-dockyard:latest`
+
+GitHub Container Registry uses the repository `GITHUB_TOKEN`. Docker Hub uses
+the repository secret `DOCKERHUB_TOKEN` with username `yexca`.

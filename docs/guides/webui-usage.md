@@ -5,8 +5,6 @@ The WebUI manager is the only control plane.
 ## Start
 
 ```powershell
-Copy-Item config\manager.example.yaml config\manager.yaml
-Copy-Item config\secrets.example.yaml config\secrets.yaml
 docker compose up -d
 ```
 
@@ -14,6 +12,9 @@ Open `http://127.0.0.1:7652`.
 
 `docker compose up -d` starts only `manager` and `docker-socket-proxy`. No
 agent containers start until the WebUI creates them.
+
+Create and edit manager configuration from the WebUI. Saved local config and
+secret files are ignored by Git.
 
 ## Main Workflows
 

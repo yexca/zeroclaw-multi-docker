@@ -305,7 +305,7 @@ class DockerControllerTest(unittest.TestCase):
 
         spec = controller.build_container_spec(
             {
-                "docker": {"project_name": "zeroclaw-matrix-multi"},
+                "docker": {"project_name": "zeroclaw-dockyard"},
                 "paths": {},
                 "defaults": {"zeroclaw_image": "example/zeroclaw:test"},
             },
@@ -319,13 +319,13 @@ class DockerControllerTest(unittest.TestCase):
 
         self.assertEqual(spec.container_name, "zeroclaw-matrix-agent-one")
         self.assertEqual(spec.image, "example/zeroclaw:test")
-        self.assertEqual(spec.network_name, "zeroclaw-matrix-multi_default")
+        self.assertEqual(spec.network_name, "zeroclaw-dockyard_default")
         self.assertEqual(spec.labels[MANAGER_LABEL], "true")
         self.assertEqual(spec.labels[AGENT_ID_LABEL], "agent1")
         self.assertEqual(spec.labels[AGENT_NAME_LABEL], "Agent One")
         self.assertIn("host.docker.internal:host-gateway", spec.extra_hosts)
         self.assertEqual(spec.storage_driver, "volume")
-        self.assertEqual(spec.volume_name, "zeroclaw-matrix-multi-agent-agent-one-data")
+        self.assertEqual(spec.volume_name, "zeroclaw-dockyard-agent-agent-one-data")
         self.assertEqual(spec.local_instance_dir, Path("/app/instances") / "agent-one")
 
     def test_manager_label_is_required_for_operations(self) -> None:
@@ -382,7 +382,7 @@ class DockerControllerTest(unittest.TestCase):
         self.assertEqual(spec.environment["PROACTIVE_AGENT_URL"], "http://host.docker.internal:42641/webhook?agent=agent1")
         self.assertEqual(spec.environment["PROACTIVE_TARGET"], "@you:matrix.example.com")
         self.assertEqual(spec.storage_driver, "volume")
-        self.assertEqual(spec.volume_name, "zeroclaw-matrix-multi-agent-agent1-data")
+        self.assertEqual(spec.volume_name, "zeroclaw-dockyard-agent-agent1-data")
         self.assertEqual(spec.local_instance_dir, Path("/app/instances") / "agent1")
 
     def test_build_proactive_spec_allows_gateway_url_override(self) -> None:
@@ -535,7 +535,7 @@ class AgentRendererTest(unittest.TestCase):
         self.renderer = AgentRenderer(self.root)
         self.config = {
             "paths": {"instances_dir": str(self.root / "instances")},
-            "docker": {"project_name": "zeroclaw-matrix-multi", "matrix_host_ip": "127.0.0.1"},
+            "docker": {"project_name": "zeroclaw-dockyard", "matrix_host_ip": "127.0.0.1"},
             "defaults": {
                 "zeroclaw_image": "example/zeroclaw:test",
                 "matrix": {"homeserver": "https://matrix.example.com", "reply_in_thread": True},

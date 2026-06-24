@@ -8,12 +8,12 @@ server:
 
 docker:
   proxy_url: http://docker-socket-proxy:2375
-  project_name: zeroclaw-matrix-multi
-  control_network: zeroclaw-matrix-multi_manager-control
-  runtime_network: zeroclaw-matrix-multi_default
+  project_name: zeroclaw-dockyard
+  control_network: zeroclaw-dockyard_manager-control
+  runtime_network: zeroclaw-dockyard_default
   matrix_host_ip: 127.0.0.1
   storage_driver: volume
-  volume_prefix: zeroclaw-matrix-multi
+  volume_prefix: zeroclaw-dockyard
 
 paths:
   secrets_file: /app/config/secrets.yaml
@@ -21,9 +21,9 @@ paths:
   instances_dir: /app/instances
   # Host paths are used only when docker.storage_driver is bind.
   # Override these if bind mode cannot infer the project path.
-  # host_project_dir: /absolute/path/to/zeroclaw_multi_docker
-  # host_instances_dir: /absolute/path/to/zeroclaw_multi_docker/instances
-  # host_bootstrap_dir: /absolute/path/to/zeroclaw_multi_docker/bootstrap
+  # host_project_dir: /absolute/path/to/zeroclaw-dockyard
+  # host_instances_dir: /absolute/path/to/zeroclaw-dockyard/instances
+  # host_bootstrap_dir: /absolute/path/to/zeroclaw-dockyard/bootstrap
 
 defaults:
   zeroclaw_image: ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
