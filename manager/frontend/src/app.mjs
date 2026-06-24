@@ -1052,35 +1052,33 @@ function renderAgentCard(agent) {
   const id = itemId(agent);
   const status = state.agentStatuses[id];
   const logs = state.agentLogs[id];
+  const normalizedState = status?.normalized_state || status?.state || "unknown";
+  const model = agent.model?.model || agent.llm_profile || t("common.none");
+  const mappedPort = status?.mapped_port || (agent.host_port ? `127.0.0.1:${agent.host_port}` : "");
+  const hasLogs = Boolean(logs);
   return `
-    <article class="agent-card">
+    <article class="agent-card state-card state-${escapeHtml(normalizedState)}">
       <header class="card-header">
         <div>
           <h3>${escapeHtml(id || t("common.unnamed"))}</h3>
           <p>${escapeHtml(agent.enabled === false ? t("common.disabled") : t("common.enabled"))}</p>
         </div>
-        <span class="status-pill state-${escapeHtml(status?.normalized_state || status?.state || "unknown")}">${escapeHtml(
-          status?.normalized_state || status?.state || t("common.unknown")
-        )}</span>
+        <span class="status-pill state-${escapeHtml(normalizedState)}">${escapeHtml(normalizedState || t("common.unknown"))}</span>
       </header>
-      <dl class="data-list">
-        <div><dt>${escapeHtml(t("fields.hostPort"))}</dt><dd>${escapeHtml(agent.host_port || "")}</dd></div>
-        <div><dt>${escapeHtml(t("observability.containerId"))}</dt><dd>${escapeHtml(shortHash(status?.container_id))}</dd></div>
-        <div><dt>${escapeHtml(t("observability.image"))}</dt><dd>${escapeHtml(status?.image || agent.image || "")}</dd></div>
-        <div><dt>${escapeHtml(t("observability.created"))}</dt><dd>${escapeHtml(formatDate(status?.created_at))}</dd></div>
-        <div><dt>${escapeHtml(t("observability.started"))}</dt><dd>${escapeHtml(formatDate(status?.started_at))}</dd></div>
-        <div><dt>${escapeHtml(t("observability.health"))}</dt><dd>${escapeHtml(status?.health_status || "")}</dd></div>
-        <div><dt>${escapeHtml(t("observability.restartCount"))}</dt><dd>${escapeHtml(status?.restart_count ?? "")}</dd></div>
-        <div><dt>${escapeHtml(t("observability.mappedPort"))}</dt><dd>${escapeHtml(status?.mapped_port || "")}</dd></div>
-        <div><dt>${escapeHtml(t("observability.configHash"))}</dt><dd>${escapeHtml(shortHash(status?.config_hash))}</dd></div>
-        <div><dt>${escapeHtml(t("observability.containerHash"))}</dt><dd>${escapeHtml(shortHash(status?.container_config_hash))}</dd></div>
-        <div><dt>${escapeHtml(t("observability.rebuild"))}</dt><dd>${escapeHtml(status?.needs_rebuild ? t("common.yes") : t("common.no"))}</dd></div>
-        <div><dt>${escapeHtml(t("observability.latestExport"))}</dt><dd>${escapeHtml(formatDate(status?.latest_export_time))}</dd></div>
-        <div><dt>${escapeHtml(t("fields.model"))}</dt><dd>${escapeHtml(agent.model?.model || agent.llm_profile || "")}</dd></div>
-        <div><dt>${escapeHtml(t("fields.matrixProfile"))}</dt><dd>${escapeHtml(agent.matrix_profile || t("common.none"))}</dd></div>
-        <div><dt>${escapeHtml(t("fields.mcpStatus"))}</dt><dd>${escapeHtml(agent.mcp_profile || t("common.none"))}</dd></div>
-      </dl>
-      <div class="button-row">
+      <div class="agent-card-summary">
+        ${renderMetric(t("fields.hostPort"), agent.host_port || t("common.none"))}
+        ${renderMetric(t("observability.mappedPort"), mappedPort || t("common.none"))}
+        ${renderMetric(t("fields.model"), model)}
+        ${renderMetric(t("fields.matrixProfile"), agent.matrix_profile || t("common.none"))}
+      </div>
+      <div class="agent-card-meta">
+        <span class="${status?.needs_rebuild ? "meta-flag warning" : "meta-flag"}">${escapeHtml(
+          `${t("observability.rebuild")}: ${status?.needs_rebuild ? t("common.yes") : t("common.no")}`
+        )}</span>
+        <span class="meta-flag">${escapeHtml(`${t("observability.started")}: ${formatDate(status?.started_at) || t("common.unknown")}`)}</span>
+        <span class="meta-flag">${escapeHtml(`${t("fields.mcpStatus")}: ${agent.mcp_profile || t("common.none")}`)}</span>
+      </div>
+      <div class="button-row card-actions">
         ${actionButton(`agent-start:${id}`, "actions.start", "primary")}
         ${actionButton(`agent-stop:${id}`, "actions.stop")}
         ${actionButton(`agent-restart:${id}`, "actions.restart")}
@@ -1089,9 +1087,40 @@ function renderAgentCard(agent) {
         ${actionButton(`agent-edit:${id}`, "actions.edit")}
         ${actionButton(`agent-delete:${id}`, "actions.delete", "danger")}
       </div>
-      <pre class="log-viewer">${escapeHtml(formatLogs(logs, status))}</pre>
+      <details class="agent-detail-panel">
+        <summary>${escapeHtml(t("fields.advanced"))}</summary>
+        <dl class="data-list compact">
+          ${renderDetail(t("observability.containerId"), shortHash(status?.container_id))}
+          ${renderDetail(t("observability.image"), status?.image || agent.image || "")}
+          ${renderDetail(t("observability.created"), formatDate(status?.created_at))}
+          ${renderDetail(t("observability.health"), status?.health_status || "")}
+          ${renderDetail(t("observability.restartCount"), status?.restart_count ?? "")}
+          ${renderDetail(t("observability.configHash"), shortHash(status?.config_hash))}
+          ${renderDetail(t("observability.containerHash"), shortHash(status?.container_config_hash))}
+          ${renderDetail(t("observability.latestExport"), formatDate(status?.latest_export_time))}
+        </dl>
+      </details>
+      ${
+        hasLogs
+          ? `<details class="agent-detail-panel log-panel" open><summary>${escapeHtml(t("actions.logs"))}</summary><pre class="log-viewer">${escapeHtml(
+              formatLogs(logs, status)
+            )}</pre></details>`
+          : ""
+      }
     </article>
   `;
+}
+
+function renderMetric(label, value) {
+  return `<div class="metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(displayValue(value))}</strong></div>`;
+}
+
+function renderDetail(label, value) {
+  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(displayValue(value))}</dd></div>`;
+}
+
+function displayValue(value) {
+  return value === undefined || value === null || value === "" ? t("common.none") : value;
 }
 
 function renderHistory() {
