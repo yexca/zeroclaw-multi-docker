@@ -412,7 +412,9 @@ const state = {
   aiFillProfile: "",
   aiFillInstruction: DEFAULT_AI_FILL_INSTRUCTION,
   aiFillDescription: "",
-  aiFillScrollTop: 0
+  aiFillScrollTop: 0,
+  pendingResourceDelete: null,
+  pendingResourceDeleteInput: ""
 };
 
 let i18n;
@@ -1241,6 +1243,7 @@ function render() {
       <section class="content-panel">${renderSelectedTab()}</section>
     </div>
     ${renderAiFillDialog()}
+    ${renderResourceDeleteDialog()}
   `;
 }
 
@@ -1372,13 +1375,13 @@ function renderResourceBucket(titleKey, rows = [], kind, bucket) {
 
 function renderResourceRow(row, kind, bucket) {
   const labels = row.labels || {};
-  const state = row.state || row.status || row.classification || "";
+  const state = resourceClassificationLabel(row.state || row.status || row.classification || "");
   return `<article class="resource-row resource-${bucket}">
     <div>
       <strong>${escapeHtml(row.name || shortHash(row.id) || t("common.unnamed"))}</strong>
-      <span>${escapeHtml(row.classification || "")}</span>
+      <span>${escapeHtml(resourceClassificationLabel(row.classification || ""))}</span>
     </div>
-    <div>${renderDetail(t("resources.kind"), kind)}${renderDetail(t("resources.role"), row.role || "")}</div>
+    <div>${renderDetail(t("resources.kindLabel"), resourceKindLabel(kind))}${renderDetail(t("resources.role"), resourceRoleLabel(row.role || ""))}</div>
     <div>${renderDetail(t("resources.agent"), row.agent_id || row.agent_name || "")}${renderDetail(t("resources.state"), state)}</div>
     <details class="agent-detail-panel">
       <summary>${escapeHtml(t("resources.labels"))}</summary>
@@ -1386,6 +1389,18 @@ function renderResourceRow(row, kind, bucket) {
     </details>
     ${renderResourceActions(row, kind, bucket)}
   </article>`;
+}
+
+function resourceKindLabel(kind) {
+  return t(`resources.kind.${kind}`) || kind;
+}
+
+function resourceRoleLabel(role) {
+  return role ? t(`resources.roleValue.${role}`) || role : "";
+}
+
+function resourceClassificationLabel(classification) {
+  return classification ? t(`resources.classification.${classification}`) || classification : "";
 }
 
 function renderResourceActions(row, kind, bucket) {
@@ -1416,6 +1431,37 @@ function renderResourceLabels(labels) {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd></div>`)
     .join("")}</dl>`;
+}
+
+function renderResourceDeleteDialog() {
+  const pending = state.pendingResourceDelete;
+  if (!pending) return "";
+  const matches = state.pendingResourceDeleteInput === pending.name;
+  return `
+    <div class="modal-backdrop" role="presentation">
+      <section class="modal-panel resource-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="resource-delete-title">
+        <header class="modal-header">
+          <div>
+            <h3 id="resource-delete-title">${escapeHtml(t("resources.deleteTitle"))}</h3>
+            <p>${escapeHtml(t(`resources.deleteWarning.${pending.kind}`) || t("resources.deleteWarning.default"))}</p>
+          </div>
+          <button type="button" class="button icon-button" data-action="resource-delete-cancel" aria-label="${escapeHtml(t("actions.cancel"))}">${iconSvg("x")}</button>
+        </header>
+        <dl class="data-list compact">
+          ${renderDetail(t("resources.kindLabel"), resourceKindLabel(pending.kind))}
+          ${renderDetail(t("resources.name"), pending.name)}
+          ${renderDetail(t("resources.classificationLabel"), resourceClassificationLabel(pending.classification || ""))}
+        </dl>
+        <label class="field">
+          <span>${escapeHtml(t("resources.deleteTypeName"))}</span>
+          <input data-resource-delete-input value="${escapeHtml(state.pendingResourceDeleteInput)}" autocomplete="off" />
+        </label>
+        <footer class="button-row modal-actions">
+          ${actionButton("resource-delete-cancel", "actions.cancel")}
+          ${actionButton("resource-delete-confirm", "actions.delete", "danger", !matches)}
+        </footer>
+      </section>
+    </div>`;
 }
 
 function renderDashboard() {
@@ -2287,6 +2333,15 @@ async function handleAction(action) {
   if (action === "refresh-docker-resources") {
     return runAction(refreshDockerResources);
   }
+  if (action === "resource-delete-cancel") {
+    state.pendingResourceDelete = null;
+    state.pendingResourceDeleteInput = "";
+    render();
+    return;
+  }
+  if (action === "resource-delete-confirm") {
+    return confirmResourceDelete();
+  }
   if (action.startsWith("resource-")) {
     return handleResourceAction(action);
   }
@@ -2515,7 +2570,16 @@ async function handleResourceAction(actionText) {
   const resource = parseResourceAction(actionText);
   if (!resource.kind || !resource.name) return;
   const payload = { action: resource.action, kind: resource.kind, name: resource.name };
-  if (resource.action === "delete" && !(await confirmDanger("confirm.deleteDockerResource"))) return;
+  if (resource.action === "delete") {
+    state.pendingResourceDelete = {
+      kind: resource.kind,
+      name: resource.name,
+      classification: findResourceClassification(resource.kind, resource.name)
+    };
+    state.pendingResourceDeleteInput = "";
+    render();
+    return;
+  }
   if (resource.action === "migrate") {
     const targetName = window.prompt(t("resources.migrateTargetPrompt"), `${resource.name}-migrated`);
     if (!targetName) return;
@@ -2526,6 +2590,31 @@ async function handleResourceAction(actionText) {
       method: "POST",
       body: JSON.stringify(payload)
     });
+    await refreshDockerResources();
+  }, "messages.resourceActionDone");
+}
+
+function findResourceClassification(kind, name) {
+  const groupKey = { container: "containers", volume: "volumes", network: "networks" }[kind];
+  const group = groupKey ? state.dockerResources?.[groupKey] : null;
+  if (!group) return "";
+  for (const bucket of ["conflicts", "orphans", "legacy", "ignored", "adopted", "expected"]) {
+    const row = (group[bucket] || []).find((item) => item.name === name);
+    if (row) return row.classification || "";
+  }
+  return "";
+}
+
+async function confirmResourceDelete() {
+  const pending = state.pendingResourceDelete;
+  if (!pending || state.pendingResourceDeleteInput !== pending.name) return;
+  await runAction(async () => {
+    await api("/api/docker/resources/action", {
+      method: "POST",
+      body: JSON.stringify({ action: "delete", kind: pending.kind, name: pending.name })
+    });
+    state.pendingResourceDelete = null;
+    state.pendingResourceDeleteInput = "";
     await refreshDockerResources();
   }, "messages.resourceActionDone");
 }
@@ -2675,6 +2764,10 @@ function bindEvents() {
   document.addEventListener("input", (event) => {
     if (event.target.matches("[data-template-new-file]")) {
       state.pendingTemplateFileName = event.target.value;
+    }
+    if (event.target.matches("[data-resource-delete-input]")) {
+      state.pendingResourceDeleteInput = event.target.value;
+      render();
     }
   });
 

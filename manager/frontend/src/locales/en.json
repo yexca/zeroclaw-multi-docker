@@ -279,8 +279,7 @@
     "deleteTemplate": "Delete this prompt template?",
     "overwriteWorkspace": "Overwrite existing workspace prompt files?",
     "resetMatrixState": "This will delete the local Matrix encryption state and generate a new device ID for this Matrix configuration. Other agents using the same Matrix account or configuration may be affected. Continue?",
-    "deleteTemplateFile": "Remove this custom template file?",
-    "deleteDockerResource": "Delete this Docker resource? Docker may refuse if it is still in use. This cannot be undone."
+    "deleteTemplateFile": "Remove this custom template file?"
   },
   "common": {
     "loading": "Loading...",
@@ -384,10 +383,12 @@
     "emptyBucket": "No resources in this group.",
     "summary": "{expected} expected / {orphans} orphan / {legacy} untracked / {conflicts} review",
     "expectedErrors": "Some configured agents could not be evaluated for expected Docker resources.",
-    "kind": "Kind",
+    "kindLabel": "Kind",
+    "name": "Name",
     "role": "Role",
     "agent": "Agent",
     "state": "State",
+    "classificationLabel": "Classification",
     "labels": "Labels",
     "aboutTitle": "How resources are classified",
     "aboutSummary": "Open for the exact matching rules.",
@@ -395,6 +396,40 @@
     "conflictsHelp": "The current configuration expects this resource name, but the resource is missing manager ownership labels. This often means an older version created it, so review before modifying it.",
     "orphansHelp": "Docker labels mark this resource as manager-owned, but the current configuration no longer expects it.",
     "untrackedHelp": "The resource name contains zeroclaw, but it is not expected by the current configuration and has no manager ownership label. It may belong to another local setup.",
-    "migrateTargetPrompt": "Target volume name"
+    "migrateTargetPrompt": "Target volume name",
+    "deleteTitle": "Delete Docker resource",
+    "deleteTypeName": "Type the resource name to confirm deletion",
+    "deleteWarning": {
+      "container": "Deleting a container stops and removes that container, but it does not remove its volumes.",
+      "volume": "Deleting a volume can permanently remove runtime data, workspace files, Matrix encryption state, and unsynced changes.",
+      "network": "Deleting a network can disconnect containers that still depend on it.",
+      "default": "Deleting a Docker resource cannot be undone."
+    },
+    "kind": {
+      "container": "Container",
+      "volume": "Volume",
+      "network": "Network"
+    },
+    "roleValue": {
+      "agent": "Agent",
+      "proactive": "Proactive sidecar",
+      "sync": "Sync helper",
+      "volume": "Volume",
+      "network": "Network"
+    },
+    "classification": {
+      "expected": "Expected",
+      "expected_absent": "Expected but absent",
+      "expected_name_unmanaged": "Expected name without manager labels",
+      "expected_name_unlabeled": "Expected name without manager labels",
+      "managed_orphan": "Managed but not in current config",
+      "legacy_candidate": "Untracked ZeroClaw-named",
+      "ignored": "Ignored locally",
+      "adopted": "Locally adopted",
+      "absent": "Absent",
+      "running": "Running",
+      "exited": "Stopped",
+      "created": "Created"
+    }
   }
 }

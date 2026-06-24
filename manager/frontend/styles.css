@@ -1061,6 +1061,14 @@ dd {
   min-height: 130px;
 }
 
+.resource-delete-dialog {
+  width: min(620px, 100%);
+}
+
+.resource-delete-dialog .field {
+  margin-top: 14px;
+}
+
 .ai-fill-dialog .ai-fill-instruction {
   min-height: 210px;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;

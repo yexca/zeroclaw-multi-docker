@@ -274,8 +274,7 @@
     "deleteTemplate": "删除这个提示词模板？",
     "overwriteWorkspace": "覆盖现有工作区提示词文件？",
     "resetMatrixState": "该行为将清除 Matrix 本地加密状态，并生成该 Matrix 配置的新 device_id。如果有其他 agent 正在使用同一个 Matrix 账号或配置，可能受到影响。是否继续？",
-    "deleteTemplateFile": "移除这个自定义模板文件？",
-    "deleteDockerResource": "删除这个 Docker 资源？如果资源仍在使用中，Docker 可能会拒绝。此操作不可撤销。"
+    "deleteTemplateFile": "移除这个自定义模板文件？"
   },
   "common": {
     "loading": "加载中...",
@@ -384,10 +383,12 @@
     "emptyBucket": "这一组暂时没有资源。",
     "summary": "{expected} 配置中 / {orphans} 不在配置中 / {legacy} 未跟踪 / {conflicts} 需确认",
     "expectedErrors": "部分 agent 无法推导对应的 Docker 资源。",
-    "kind": "类型",
+    "kindLabel": "类型",
+    "name": "名称",
     "role": "角色",
     "agent": "Agent",
     "state": "状态",
+    "classificationLabel": "分类",
     "labels": "标签",
     "aboutTitle": "这些分组是什么意思",
     "aboutSummary": "展开查看具体判断规则。",
@@ -395,6 +396,40 @@
     "conflictsHelp": "当前配置会推导出这个资源名，但资源缺少管理器归属标签。这通常是旧版本创建的资源，修改前需要确认。",
     "orphansHelp": "Docker 标签表明它属于管理器，但当前配置已经不再需要这个资源。",
     "untrackedHelp": "资源名包含 zeroclaw，但当前配置不需要它，也没有管理器归属标签。它可能属于另一套本地配置。",
-    "migrateTargetPrompt": "目标卷名称"
+    "migrateTargetPrompt": "目标卷名称",
+    "deleteTitle": "删除 Docker 资源",
+    "deleteTypeName": "输入资源名称以确认删除",
+    "deleteWarning": {
+      "container": "删除容器会停止并移除该容器，但不会删除它挂载的卷。",
+      "volume": "删除卷可能永久移除运行数据、工作区文件、Matrix 加密状态以及尚未同步的改动。",
+      "network": "删除网络可能断开仍依赖它的容器连接。",
+      "default": "删除 Docker 资源后无法撤销。"
+    },
+    "kind": {
+      "container": "容器",
+      "volume": "卷",
+      "network": "网络"
+    },
+    "roleValue": {
+      "agent": "Agent",
+      "proactive": "Proactive sidecar",
+      "sync": "同步辅助容器",
+      "volume": "卷",
+      "network": "网络"
+    },
+    "classification": {
+      "expected": "配置中的资源",
+      "expected_absent": "配置中需要但当前不存在",
+      "expected_name_unmanaged": "名称匹配但缺少管理器标签",
+      "expected_name_unlabeled": "名称匹配但缺少管理器标签",
+      "managed_orphan": "由管理器创建但不在当前配置中",
+      "legacy_candidate": "未跟踪的 ZeroClaw 命名资源",
+      "ignored": "已在本地忽略",
+      "adopted": "已在本地接管",
+      "absent": "不存在",
+      "running": "运行中",
+      "exited": "已停止",
+      "created": "已创建"
+    }
   }
 }
