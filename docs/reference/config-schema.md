@@ -20,8 +20,38 @@ Primary config is YAML. The manager reads `config/manager.yaml` locally, or
 - `profiles.vision`: reusable vision-capable LLM profiles.
 - `profiles.matrix`: reusable Matrix profiles.
 - `profiles.mcp`: reusable MCP profiles.
+- `skills`: global skill loading, registry, creation, and improvement settings.
+- `skill_bundles`: reusable groups of canonical Agent Skills.
 - `prompt_templates`: reusable workspace prompt files.
 - `agents`: per-agent definitions.
+
+## Skills And Skill Bundles
+
+`skills` maps to ZeroClaw's `[skills]` runtime section:
+
+- `allow_scripts`: allow script-like files under skill `scripts/`.
+  Default: `false`.
+- `open_skills_enabled`: enable ZeroClaw's open-skills sync path.
+- `registry_url`: registry repository used for bare-name skill installs.
+- `prompt_injection_mode`: `full` or `compact`.
+- `extra_registries`: additional registry entries with `name`, `url`, `kind`,
+  and optional `enabled`.
+- `skill_creation`: autonomous skill creation settings.
+- `install_suggestions`: prompt-triggered install suggestion settings.
+- `skill_improvement`: background skill review and improvement settings.
+
+`skill_bundles` entries define reusable skill groups:
+
+- `id`: bundle alias selected by agents through `agents[].skill_bundles`.
+- `directory`: optional path. Relative paths resolve from the project root and
+  must stay inside `shared/`. Empty uses `shared/skills/<id>`.
+- `include`: optional skill names to include. Empty includes all skills in the
+  directory.
+- `exclude`: skill names removed from the bundle.
+
+Each skill is stored as `shared/skills/<bundle>/<skill>/SKILL.md` with optional
+`scripts/`, `references/`, and `assets/` subdirectories. The manager syncs
+`shared/` into runtime volumes before starting or restarting agents.
 
 ## Vision LLM Profile Fields
 
@@ -59,6 +89,7 @@ Common agent fields:
   references. `vision_profile` is optional; when empty, image routing is
   disabled for the agent.
 - `prompt_template`: workspace template reference.
+- `skill_bundles`: skill bundle aliases loaded by the agent at runtime.
 - `matrix.external_peers`: required per-agent peer group members. Matrix
   identity, credentials, rooms, and channel behavior should live in the
   selected Matrix profile.
@@ -92,7 +123,8 @@ runtime filesystem:
   syncs local files to the runtime volume before start/restart and can sync the
   runtime volume back to local files.
 - `bind`: mount host paths directly, using `paths.host_instances_dir` and
-  `paths.host_bootstrap_dir` or paths discovered from the manager container.
+  `paths.host_bootstrap_dir`, `paths.host_shared_dir`, or paths discovered
+  from the manager container.
 
 `docker.volume_prefix` optionally customizes runtime volume names. The default
 prefix is `docker.project_name`.

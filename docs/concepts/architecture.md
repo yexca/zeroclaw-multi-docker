@@ -35,6 +35,11 @@ The manager labels containers with `zeroclaw.manager=true`,
 `zeroclaw.agent.id`, `zeroclaw.agent.name`, and a spec hash. Runtime operations
 refuse to modify same-named containers without matching manager labels.
 
+Project-level skill bundles live under `shared/skills/`. In volume storage
+mode, the manager copies `shared/` into each agent runtime volume before
+start/restart so ZeroClaw can load the configured `[skill_bundles.*]`. In bind
+storage mode, `shared/` is mounted into the agent at `/zeroclaw-data/shared`.
+
 ## Frontend Startup Flow
 
 The frontend is static HTML, CSS, and browser JavaScript. The source uses

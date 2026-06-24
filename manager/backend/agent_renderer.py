@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -73,6 +74,22 @@ REQUIRED_ENV_KEYS = [
     "VISION_MAX_IMAGE_SIZE_MB",
     "VISION_MAX_IMAGE_TURNS",
     "ZEROCLAW_providers__models__custom__vision__api_key",
+    "SKILLS_ALLOW_SCRIPTS",
+    "SKILLS_OPEN_SKILLS_ENABLED",
+    "SKILLS_REGISTRY_URL",
+    "SKILLS_PROMPT_INJECTION_MODE",
+    "SKILLS_EXTRA_REGISTRIES",
+    "SKILL_CREATION_ENABLED",
+    "SKILL_CREATION_MAX_SKILLS",
+    "SKILL_CREATION_SIMILARITY_THRESHOLD",
+    "SKILL_INSTALL_SUGGESTIONS_ENABLED",
+    "SKILL_IMPROVEMENT_ENABLED",
+    "SKILL_IMPROVEMENT_COOLDOWN_SECS",
+    "SKILL_IMPROVEMENT_NUDGE_INTERVAL_ITERATIONS",
+    "SKILL_IMPROVEMENT_MAX_REVIEW_ITERATIONS",
+    "AGENT_SKILL_BUNDLES",
+    "SKILL_BUNDLES_JSON",
+    "SKILL_BUNDLES_TOML",
 ]
 
 
@@ -105,6 +122,7 @@ class AgentRenderer:
         resolved = self.resolve_agent(config, agent)
         docker_config = config.get("docker") if isinstance(config.get("docker"), dict) else {}
         runtime = config.get("runtime") if isinstance(config.get("runtime"), dict) else {}
+        skills = config.get("skills") if isinstance(config.get("skills"), dict) else {}
         heartbeat = config.get("heartbeat") if isinstance(config.get("heartbeat"), dict) else {}
         pacing = config.get("pacing") if isinstance(config.get("pacing"), dict) else {}
         model = resolved.get("model") if isinstance(resolved.get("model"), dict) else {}
@@ -209,6 +227,22 @@ class AgentRenderer:
             "PACING_LOOP_DETECTION_MAX_REPEATS": env_value(pacing.get("loop_detection_max_repeats") or 3),
             "SHELL_TIMEOUT_SECS": env_value(runtime.get("shell_timeout_secs") or 300),
             "SHELL_TOOL_TIMEOUT_SECS": env_value(runtime.get("shell_tool_timeout_secs") or runtime.get("shell_timeout_secs") or 300),
+            "SKILLS_ALLOW_SCRIPTS": env_value(skills.get("allow_scripts", False)),
+            "SKILLS_OPEN_SKILLS_ENABLED": env_value(skills.get("open_skills_enabled", False)),
+            "SKILLS_REGISTRY_URL": env_value(skills.get("registry_url") or "https://github.com/zeroclaw-labs/zeroclaw-skills"),
+            "SKILLS_PROMPT_INJECTION_MODE": env_value(skills.get("prompt_injection_mode") or "full"),
+            "SKILLS_EXTRA_REGISTRIES": toml_inline_env(skills.get("extra_registries") or []),
+            "SKILL_CREATION_ENABLED": env_value((skills.get("skill_creation") or {}).get("enabled", False)),
+            "SKILL_CREATION_MAX_SKILLS": env_value((skills.get("skill_creation") or {}).get("max_skills", 500)),
+            "SKILL_CREATION_SIMILARITY_THRESHOLD": env_value((skills.get("skill_creation") or {}).get("similarity_threshold", 0.85)),
+            "SKILL_INSTALL_SUGGESTIONS_ENABLED": env_value((skills.get("install_suggestions") or {}).get("enabled", False)),
+            "SKILL_IMPROVEMENT_ENABLED": env_value((skills.get("skill_improvement") or {}).get("enabled", False)),
+            "SKILL_IMPROVEMENT_COOLDOWN_SECS": env_value((skills.get("skill_improvement") or {}).get("cooldown_secs", 3600)),
+            "SKILL_IMPROVEMENT_NUDGE_INTERVAL_ITERATIONS": env_value((skills.get("skill_improvement") or {}).get("nudge_interval_iterations", 10)),
+            "SKILL_IMPROVEMENT_MAX_REVIEW_ITERATIONS": env_value((skills.get("skill_improvement") or {}).get("max_review_iterations", 8)),
+            "AGENT_SKILL_BUNDLES": join_value(resolved.get("skill_bundles")),
+            "SKILL_BUNDLES_JSON": json.dumps(render_skill_bundles_env(config, resolved.get("skill_bundles")), sort_keys=True),
+            "SKILL_BUNDLES_TOML": render_skill_bundles_toml(config, resolved.get("skill_bundles")),
         }
 
         overrides = resolved.get("environment")
@@ -395,12 +429,14 @@ enabled = true
 model_provider = "{toml_escape(provider_ref)}"
 runtime_profile = "daemon"
 channels = ["matrix.home"]
+skill_bundles = {toml_csv_array(env.get('AGENT_SKILL_BUNDLES', ''))}
 
 [runtime_profiles.daemon]
 shell_timeout_secs = {env.get('SHELL_TIMEOUT_SECS', '300')}
 
 [shell_tool]
 timeout_secs = {env.get('SHELL_TOOL_TIMEOUT_SECS', '300')}
+{render_skills_preview_block(env)}
 """
 
 
@@ -432,6 +468,103 @@ def toml_inline_env(value: Any) -> str:
     if value in (None, "", [], {}):
         return ""
     return toml_inline(value)
+
+
+def render_skill_bundles_env(config: dict[str, Any], selected: Any) -> list[dict[str, Any]]:
+    selected_aliases = set(join_list(selected))
+    bundles = config.get("skill_bundles") if isinstance(config.get("skill_bundles"), list) else []
+    result = []
+    for bundle in bundles:
+        if not isinstance(bundle, dict):
+            continue
+        alias = str(item_id(bundle) or "").strip()
+        if not alias or alias not in selected_aliases:
+            continue
+        result.append(
+            {
+                "alias": alias,
+                "directory": f"/zeroclaw-data/shared/skills/{alias}",
+                "include": join_list(bundle.get("include")),
+                "exclude": join_list(bundle.get("exclude")),
+            }
+        )
+    return result
+
+
+def render_skill_bundles_toml(config: dict[str, Any], selected: Any) -> str:
+    lines: list[str] = []
+    for bundle in render_skill_bundles_env(config, selected):
+        alias = str(bundle.get("alias") or "")
+        if not alias:
+            continue
+        lines.extend(
+            [
+                "",
+                f"[skill_bundles.{alias}]",
+                f'directory = "{toml_escape(str(bundle.get("directory") or ""))}"',
+                f"include = {toml_array_list(bundle.get('include') or [])}",
+                f"exclude = {toml_array_list(bundle.get('exclude') or [])}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def join_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in value.replace("\n", ",").split(",") if item.strip()]
+    return []
+
+
+def render_skills_preview_block(env: dict[str, str]) -> str:
+    lines = [
+        "",
+        "[skills]",
+        f"allow_scripts = {toml_bool(env.get('SKILLS_ALLOW_SCRIPTS', 'false'))}",
+        f"open_skills_enabled = {toml_bool(env.get('SKILLS_OPEN_SKILLS_ENABLED', 'false'))}",
+        f'prompt_injection_mode = "{toml_escape(env.get("SKILLS_PROMPT_INJECTION_MODE", "full"))}"',
+    ]
+    if env.get("SKILLS_REGISTRY_URL"):
+        lines.append(f'registry_url = "{toml_escape(env["SKILLS_REGISTRY_URL"])}"')
+    if env.get("SKILLS_EXTRA_REGISTRIES"):
+        lines.append(f"extra_registries = {env['SKILLS_EXTRA_REGISTRIES']}")
+    lines.extend(
+        [
+            "",
+            "[skills.skill_creation]",
+            f"enabled = {toml_bool(env.get('SKILL_CREATION_ENABLED', 'false'))}",
+            f"max_skills = {env.get('SKILL_CREATION_MAX_SKILLS', '500')}",
+            f"similarity_threshold = {env.get('SKILL_CREATION_SIMILARITY_THRESHOLD', '0.85')}",
+            "",
+            "[skills.install_suggestions]",
+            f"enabled = {toml_bool(env.get('SKILL_INSTALL_SUGGESTIONS_ENABLED', 'false'))}",
+            "",
+            "[skills.skill_improvement]",
+            f"enabled = {toml_bool(env.get('SKILL_IMPROVEMENT_ENABLED', 'false'))}",
+            f"cooldown_secs = {env.get('SKILL_IMPROVEMENT_COOLDOWN_SECS', '3600')}",
+            f"nudge_interval_iterations = {env.get('SKILL_IMPROVEMENT_NUDGE_INTERVAL_ITERATIONS', '10')}",
+            f"max_review_iterations = {env.get('SKILL_IMPROVEMENT_MAX_REVIEW_ITERATIONS', '8')}",
+        ]
+    )
+    try:
+        bundles = json.loads(env.get("SKILL_BUNDLES_JSON") or "[]")
+    except json.JSONDecodeError:
+        bundles = []
+    for bundle in bundles if isinstance(bundles, list) else []:
+        alias = str(bundle.get("alias") or "")
+        if not alias:
+            continue
+        lines.extend(
+            [
+                "",
+                f"[skill_bundles.{alias}]",
+                f'directory = "{toml_escape(str(bundle.get("directory") or ""))}"',
+                f"include = {toml_array_list(bundle.get('include') or [])}",
+                f"exclude = {toml_array_list(bundle.get('exclude') or [])}",
+            ]
+        )
+    return "\n".join(lines)
 
 
 def render_provider_toml_lines(env: dict[str, str]) -> str:
@@ -547,7 +680,13 @@ def join_value(value: Any) -> str:
 
 def toml_csv_array(value: str) -> str:
     items = [item.strip() for item in str(value or "").split(",") if item.strip()]
-    return "[" + ", ".join(f'"{toml_escape(item)}"' for item in items) + "]"
+    return toml_array_list(items)
+
+
+def toml_array_list(items: Any) -> str:
+    if not isinstance(items, list):
+        items = []
+    return "[" + ", ".join(f'"{toml_escape(str(item))}"' for item in items if str(item).strip()) + "]"
 
 
 def safe_name_part(value: str) -> str:

@@ -27,6 +27,7 @@
     "vision": "Vision LLM Profiles",
     "matrix": "Matrix Profiles",
     "mcp": "MCP Profiles",
+    "skills": "Skills",
     "prompts": "Prompt Templates",
     "export": "Export",
     "resources": "Docker Resources"
@@ -81,6 +82,16 @@
     "title": "MCP Profiles",
     "subtitle": "One MCP gateway/server profile can be assigned per agent.",
     "empty": "Create or select an MCP profile."
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Manage canonical SKILL.md bundles, support files, and agent skill settings.",
+    "empty": "Create or select a skill bundle.",
+    "settings": "Runtime skill settings",
+    "bundleSkills": "Bundle skills",
+    "bundleSkillsHelp": "Skills are stored as SKILL.md plus scripts/, references/, and assets/ under the bundle directory.",
+    "noSkills": "No skills in this bundle yet.",
+    "supportFiles": "Support files"
   },
   "prompts": {
     "title": "Prompt Templates",
@@ -147,6 +158,8 @@
     "ignore": "Ignore this resource",
     "migrate": "Migrate volume data",
     "clearDecision": "Clear local decision"
+    ,"archive": "Archive"
+    ,"load": "Load"
   },
   "fields": {
     "id": "ID",
@@ -166,6 +179,32 @@
     "matrixProfile": "Matrix profile",
     "mcpProfile": "MCP profile",
     "promptTemplate": "Prompt template",
+    "skillBundles": "Skill bundles",
+    "directory": "Directory",
+    "includeSkills": "Include skills",
+    "excludeSkills": "Exclude skills",
+    "allowScripts": "Allow skill scripts",
+    "openSkillsEnabled": "Enable open-skills",
+    "promptInjectionMode": "Prompt injection mode",
+    "registryUrl": "Registry URL",
+    "extraRegistries": "Extra registries (JSON)",
+    "skillCreationEnabled": "Enable skill creation",
+    "skillCreationMaxSkills": "Skill creation max skills",
+    "skillCreationSimilarity": "Skill creation similarity threshold",
+    "installSuggestionsEnabled": "Enable install suggestions",
+    "skillImprovementEnabled": "Enable skill improvement",
+    "skillImprovementCooldown": "Improvement cooldown seconds",
+    "skillImprovementNudge": "Improvement nudge iterations",
+    "skillImprovementMaxReview": "Improvement max review iterations",
+    "version": "Version",
+    "author": "Author",
+    "license": "License",
+    "category": "Category",
+    "tags": "Tags",
+    "skillBody": "Skill body",
+    "supportFile": "Support file",
+    "supportFilePath": "Support file path",
+    "supportFileContent": "Support file content",
     "templateApplyMode": "Template apply mode",
     "matrixUser": "Matrix user",
     "deviceId": "Device ID",
@@ -279,7 +318,10 @@
     "deleteTemplate": "Delete this prompt template?",
     "overwriteWorkspace": "Overwrite existing workspace prompt files?",
     "resetMatrixState": "This will delete the local Matrix encryption state and generate a new device ID for this Matrix configuration. Other agents using the same Matrix account or configuration may be affected. Continue?",
-    "deleteTemplateFile": "Remove this custom template file?"
+    "deleteTemplateFile": "Remove this custom template file?",
+    "deleteSkillBundle": "Delete this skill bundle config? Skill files on disk are not removed.",
+    "archiveSkill": "Archive this skill into shared/skills/_deleted?",
+    "deleteSkillFile": "Delete this support file?"
   },
   "common": {
     "loading": "Loading...",
@@ -315,6 +357,7 @@
       "name": "Optional display/container name. Leave blank to use the ID.",
       "image": "ZeroClaw Docker image for this agent. Defaults to the manager's current ZeroClaw image.",
       "mcpProfile": "Optional MCP gateway profile assigned to this agent.",
+      "skillBundles": "Skill bundle aliases to load for this agent, one per line. Create and edit bundles in Skills.",
       "externalPeers": "Required per-agent Matrix peer list used for the generated peer group and send_message_to_peer authorization. Matrix identity and credentials come from the Matrix profile.",
       "templateApplyMode": "Controls how prompt template files are written when Apply template is clicked.",
       "environment": "Advanced explicit environment variables merged into the generated agent container environment.",
@@ -364,6 +407,36 @@
       "maxImageSizeMb": "Maximum image payload size before base64 encoding. ZeroClaw clamps this to 1-20 MB.",
       "maxImageTurns": "How many recent conversation turns keep image data. Use 0 to disable age trimming.",
       "allowRemoteFetch": "Allow ZeroClaw to fetch http/https image URLs. Local files and Matrix attachments do not require this."
+    },
+    "skills": {
+      "allowScripts": "Allow script-like files in skill scripts/. Keep this disabled unless you trust the skill contents.",
+      "openSkillsEnabled": "Enable ZeroClaw's open-skills repository sync path for community skills.",
+      "promptInjectionMode": "full injects full skill instructions; compact injects smaller metadata and relies on on-demand reading.",
+      "registryUrl": "Git repository used by ZeroClaw for bare-name skill installs.",
+      "extraRegistries": "Additional skill registries as JSON. Each entry can include name, url, kind, and enabled.",
+      "skillCreationEnabled": "Allow ZeroClaw to create new skills automatically after successful multi-step tasks.",
+      "skillCreationMaxSkills": "Maximum number of automatically created skills to keep.",
+      "skillCreationSimilarity": "Deduplication threshold for automatic skill creation. Higher values allow more similar skills.",
+      "installSuggestionsEnabled": "Allow ZeroClaw to suggest installable skills when a prompt appears to need one.",
+      "skillImprovementEnabled": "Allow the background review fork to improve skills after they are used.",
+      "skillImprovementCooldown": "Minimum seconds between automatic reviews for the same skill.",
+      "skillImprovementNudge": "Tool-call iteration count that can trigger a background skill review. 0 disables iteration nudges.",
+      "skillImprovementMaxReview": "Maximum tool-call iterations allowed inside one background skill review.",
+      "bundleId": "Bundle alias selected by agents. Use letters, numbers, underscore, or hyphen.",
+      "bundleDirectory": "Directory containing this bundle's skill folders. Relative paths resolve from the project root and must stay inside shared/.",
+      "includeSkills": "Optional allow-list of skill directory names, one per line. Empty includes all skills in the bundle directory.",
+      "excludeSkills": "Skill directory names to remove from this bundle, one per line. Exclude wins over include.",
+      "skillName": "Skill directory name and frontmatter name. Use a short stable slug.",
+      "description": "One-line description shown to the model and in lists. Required by the Agent Skills format.",
+      "version": "Optional skill version written into SKILL.md frontmatter.",
+      "author": "Optional author written into SKILL.md frontmatter.",
+      "license": "Optional license written into SKILL.md frontmatter.",
+      "category": "Optional category written into SKILL.md frontmatter.",
+      "tags": "Skill tags, one per line. The slash tag can expose a skill as a slash command in supported channels.",
+      "body": "Markdown instructions the agent reads when using this skill.",
+      "supportFile": "Existing support file to load into the editor.",
+      "supportFilePath": "Relative path under references/, scripts/, or assets/. scripts/ requires Allow skill scripts.",
+      "supportFileContent": "Content written to the support file path."
     }
   },
   "resources": {

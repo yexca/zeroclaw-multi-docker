@@ -29,7 +29,8 @@
     "prompts": "提示词模板",
     "export": "导出",
     "vision": "Vision LLM 配置",
-    "resources": "Docker 资源"
+    "resources": "Docker 资源",
+    "skills": "技能"
   },
   "dashboard": {
     "title": "仪表盘",
@@ -141,7 +142,9 @@
     "adopt": "标记为已确认",
     "ignore": "忽略这个资源",
     "migrate": "迁移卷数据",
-    "clearDecision": "清除本地记录"
+    "clearDecision": "清除本地记录",
+    "archive": "归档",
+    "load": "加载"
   },
   "fields": {
     "id": "ID",
@@ -233,7 +236,33 @@
     "maxImageSizeMb": "最大图片大小 MB",
     "maxImageTurns": "保留图片回合数",
     "allowRemoteFetch": "允许远程图片抓取",
-    "visionProfile": "Vision LLM 配置"
+    "visionProfile": "Vision LLM 配置",
+    "skillBundles": "技能包",
+    "directory": "目录",
+    "includeSkills": "包含技能",
+    "excludeSkills": "排除技能",
+    "allowScripts": "允许技能脚本",
+    "openSkillsEnabled": "启用 open-skills",
+    "promptInjectionMode": "提示注入模式",
+    "registryUrl": "技能仓库 URL",
+    "extraRegistries": "额外技能仓库 (JSON)",
+    "skillCreationEnabled": "启用技能创建",
+    "skillCreationMaxSkills": "技能创建最大数量",
+    "skillCreationSimilarity": "技能创建相似度阈值",
+    "installSuggestionsEnabled": "启用安装建议",
+    "skillImprovementEnabled": "启用技能改进",
+    "skillImprovementCooldown": "改进冷却秒数",
+    "skillImprovementNudge": "改进触发迭代数",
+    "skillImprovementMaxReview": "改进 review 最大迭代数",
+    "version": "版本",
+    "author": "作者",
+    "license": "许可证",
+    "category": "分类",
+    "tags": "标签",
+    "skillBody": "技能正文",
+    "supportFile": "支持文件",
+    "supportFilePath": "支持文件路径",
+    "supportFileContent": "支持文件内容"
   },
   "templateApply": {
     "keep": "保留现有文件",
@@ -274,7 +303,10 @@
     "deleteTemplate": "删除这个提示词模板？",
     "overwriteWorkspace": "覆盖现有工作区提示词文件？",
     "resetMatrixState": "该行为将清除 Matrix 本地加密状态，并生成该 Matrix 配置的新 device_id。如果有其他 agent 正在使用同一个 Matrix 账号或配置，可能受到影响。是否继续？",
-    "deleteTemplateFile": "移除这个自定义模板文件？"
+    "deleteTemplateFile": "移除这个自定义模板文件？",
+    "deleteSkillBundle": "删除这个技能包配置？磁盘上的技能文件不会被删除。",
+    "archiveSkill": "将这个技能归档到 shared/skills/_deleted 吗？",
+    "deleteSkillFile": "删除这个支持文件吗？"
   },
   "common": {
     "loading": "加载中...",
@@ -322,7 +354,8 @@
       "proactiveChannel": "传给 send_message_to_peer 的 Matrix channel alias。默认是 matrix.home。",
       "proactiveAgentUrl": "高级完整网关 URL。留空时自动使用此 agent 的 host port 和 /webhook?agent=<id>。",
       "proactivePrompt": "可选的唤醒提示词覆盖。留空时使用内置的 PROACTIVE.md 导向提示词。",
-      "visionProfile": "可选的视觉模型配置，用于图片附件。留空时不为此 agent 启用专用视觉路由。"
+      "visionProfile": "可选的视觉模型配置，用于图片附件。留空时不为此 agent 启用专用视觉路由。",
+      "skillBundles": "此智能体要加载的技能包别名，每行一个。在“技能”页中创建和编辑技能包。"
     },
     "matrix": {
       "id": "可复用的配置 ID，智能体通过它选择 Matrix 配置。",
@@ -359,6 +392,36 @@
       "maxImageSizeMb": "base64 编码前的最大图片大小。ZeroClaw 会限制在 1-20 MB。",
       "maxImageTurns": "最近多少个对话回合保留图片数据。0 表示不按年龄裁剪。",
       "allowRemoteFetch": "允许 ZeroClaw 抓取 http/https 图片 URL。本地文件和 Matrix 附件不需要开启。"
+    },
+    "skills": {
+      "allowScripts": "允许技能 scripts/ 目录中的脚本类文件。除非你信任技能内容，否则建议关闭。",
+      "openSkillsEnabled": "启用 ZeroClaw 的 open-skills 社区技能仓库同步路径。",
+      "promptInjectionMode": "full 会注入完整技能说明；compact 只注入较短元数据，并依赖按需读取。",
+      "registryUrl": "ZeroClaw 按技能名称安装时使用的 Git 仓库地址。",
+      "extraRegistries": "额外技能仓库 JSON。每项可包含 name、url、kind 和 enabled。",
+      "skillCreationEnabled": "允许 ZeroClaw 在成功完成多步骤任务后自动创建新技能。",
+      "skillCreationMaxSkills": "自动创建技能的最大保留数量。",
+      "skillCreationSimilarity": "自动创建技能的去重相似度阈值。值越高，越允许相似技能共存。",
+      "installSuggestionsEnabled": "当提示看起来需要某个技能时，允许 ZeroClaw 建议安装。",
+      "skillImprovementEnabled": "允许后台 review fork 在技能被使用后自动改进技能。",
+      "skillImprovementCooldown": "同一个技能两次自动 review 之间的最小间隔秒数。",
+      "skillImprovementNudge": "达到多少次工具调用迭代后可触发后台技能 review。0 表示关闭该触发。",
+      "skillImprovementMaxReview": "一次后台技能 review 内允许的最大工具调用迭代数。",
+      "bundleId": "Agent 选择的技能包别名。只能使用字母、数字、下划线或连字符。",
+      "bundleDirectory": "该技能包的技能目录。相对路径从项目根目录解析，且必须位于 shared/ 内。",
+      "includeSkills": "可选技能白名单，每行一个技能目录名。留空表示包含目录内全部技能。",
+      "excludeSkills": "要从该技能包排除的技能目录名，每行一个。排除优先于包含。",
+      "skillName": "技能目录名和 frontmatter name。建议使用短而稳定的 slug。",
+      "description": "展示给模型和列表的一行技能说明。Agent Skills 格式要求必填。",
+      "version": "写入 SKILL.md frontmatter 的可选版本号。",
+      "author": "写入 SKILL.md frontmatter 的可选作者。",
+      "license": "写入 SKILL.md frontmatter 的可选许可证。",
+      "category": "写入 SKILL.md frontmatter 的可选分类。",
+      "tags": "技能标签，每行一个。slash 标签可在支持的频道中将技能暴露为斜杠命令。",
+      "body": "Agent 使用该技能时读取的 Markdown 指令正文。",
+      "supportFile": "选择一个已有支持文件加载到编辑器。",
+      "supportFilePath": "references/、scripts/ 或 assets/ 下的相对路径。scripts/ 需要开启允许脚本。",
+      "supportFileContent": "写入支持文件路径的内容。"
     }
   },
   "vision": {
@@ -432,5 +495,15 @@
     "running": "运行中",
     "exited": "已停止",
     "created": "已创建"
+  },
+  "skills": {
+    "title": "技能",
+    "subtitle": "管理标准 SKILL.md 技能包、支持文件和智能体技能设置。",
+    "empty": "创建或选择一个技能包。",
+    "settings": "运行时技能设置",
+    "bundleSkills": "技能包内技能",
+    "bundleSkillsHelp": "技能以 SKILL.md 加 scripts/、references/ 和 assets/ 子目录的形式存放在技能包目录下。",
+    "noSkills": "这个技能包里还没有技能。",
+    "supportFiles": "支持文件"
   }
 }

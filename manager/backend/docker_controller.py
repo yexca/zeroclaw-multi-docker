@@ -524,6 +524,7 @@ class DockerApiController:
         instance_dir = local_instances_dir / safe_name
         host_instances_dir = Path(str(paths.get("host_instances_dir") or manager_mounts.get("/app/instances") or project_root / "instances")).resolve()
         host_bootstrap_dir = Path(str(paths.get("host_bootstrap_dir") or manager_mounts.get("/app/bootstrap") or project_root / "bootstrap")).resolve()
+        host_shared_dir = Path(str(paths.get("host_shared_dir") or manager_mounts.get("/app/shared") or project_root / "shared")).resolve()
         bootstrap_dir = Path("/app/bootstrap" if storage_driver == "volume" else str(host_bootstrap_dir))
         runtime_instance_dir = instance_dir if storage_driver == "volume" else host_instances_dir / safe_name
         env = self.renderer.render_env(config, resolved)
@@ -542,9 +543,7 @@ class DockerApiController:
             "host_port": host_port,
             "network_name": network_name,
             "env": env,
-            "mounts": [
-                self.runtime_mount_payload(storage_driver, volume_name, str(host_bootstrap_dir), str(runtime_instance_dir), "/zeroclaw-data"),
-            ],
+            "mounts": self.runtime_mounts_payload(storage_driver, volume_name, str(host_bootstrap_dir), str(host_shared_dir), str(runtime_instance_dir)),
             "extra_hosts": [f"host.docker.internal:host-gateway", f"matrix-host:{matrix_host_ip}"],
             "storage_driver": storage_driver,
             "volume_name": volume_name if storage_driver == "volume" else "",
@@ -560,6 +559,7 @@ class DockerApiController:
             host_port=host_port,
             network_name=network_name,
             bootstrap_dir=bootstrap_dir,
+            shared_dir=Path("/app/shared" if storage_driver == "volume" else str(host_shared_dir)),
             instance_dir=runtime_instance_dir,
             local_instance_dir=instance_dir,
             storage_driver=storage_driver,
@@ -636,6 +636,7 @@ class DockerApiController:
             host_port=0,
             network_name=network_name,
             bootstrap_dir=bootstrap_dir,
+            shared_dir=agent_spec.shared_dir,
             instance_dir=agent_spec.instance_dir,
             local_instance_dir=agent_spec.local_instance_dir,
             storage_driver=agent_spec.storage_driver,
@@ -657,6 +658,7 @@ class DockerApiController:
             host_port=0,
             network_name=agent_spec.network_name,
             bootstrap_dir=agent_spec.bootstrap_dir,
+            shared_dir=agent_spec.shared_dir,
             instance_dir=agent_spec.instance_dir,
             local_instance_dir=agent_spec.local_instance_dir,
             storage_driver=agent_spec.storage_driver,
@@ -702,6 +704,15 @@ class DockerApiController:
             return {"Type": "volume", "Source": volume_name, "Target": target}
         return {"Type": "bind", "Source": instance_source, "Target": target}
 
+    def runtime_mounts_payload(self, storage_driver: str, volume_name: str, bootstrap_source: str, shared_source: str, instance_source: str) -> list[dict[str, Any]]:
+        if storage_driver == "volume":
+            return [{"Type": "volume", "Source": volume_name, "Target": "/zeroclaw-data"}]
+        return [
+            {"Type": "bind", "Source": instance_source, "Target": "/zeroclaw-data"},
+            {"Type": "bind", "Source": bootstrap_source, "Target": "/bootstrap", "ReadOnly": True},
+            {"Type": "bind", "Source": shared_source, "Target": "/zeroclaw-data/shared"},
+        ]
+
     def create_container(self, spec: "ContainerSpec") -> dict[str, Any]:
         if spec.storage_driver == "bind":
             spec.instance_dir.mkdir(parents=True, exist_ok=True)
@@ -710,6 +721,7 @@ class DockerApiController:
         mounts = [{"Type": "volume", "Source": spec.volume_name, "Target": "/zeroclaw-data"}] if spec.storage_driver == "volume" else [
             {"Type": "bind", "Source": str(spec.bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
             {"Type": "bind", "Source": str(spec.instance_dir), "Target": "/zeroclaw-data"},
+            {"Type": "bind", "Source": str(spec.shared_dir), "Target": "/zeroclaw-data/shared"},
         ]
         payload = {
             "Image": spec.image,
@@ -1099,6 +1111,7 @@ from pathlib import Path
 local = Path('/app/instances') / {safe_name!r}
 volume = Path('/volume')
 bootstrap = Path('/app/bootstrap')
+shared = Path('/app/shared')
 
 def copy_tree(src, dst):
     if not src.exists():
@@ -1134,9 +1147,17 @@ if {direction!r} == 'to-runtime':
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(bootstrap, target, symlinks=True)
+    if shared.exists():
+        target = volume / 'shared'
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(shared, target, symlinks=True)
 else:
     local.mkdir(parents=True, exist_ok=True)
     copy_tree(volume, local)
+    shared_copy = local / 'shared'
+    if shared_copy.exists():
+        shutil.rmtree(shared_copy)
 """
 
     def ensure_network(self, network_name: str) -> None:
@@ -1339,6 +1360,7 @@ class ContainerSpec:
         host_port: int,
         network_name: str,
         bootstrap_dir: Path,
+        shared_dir: Path,
         instance_dir: Path,
         local_instance_dir: Path,
         storage_driver: str,
@@ -1356,6 +1378,7 @@ class ContainerSpec:
         self.host_port = host_port
         self.network_name = network_name
         self.bootstrap_dir = bootstrap_dir
+        self.shared_dir = shared_dir
         self.instance_dir = instance_dir
         self.local_instance_dir = local_instance_dir
         self.storage_driver = storage_driver

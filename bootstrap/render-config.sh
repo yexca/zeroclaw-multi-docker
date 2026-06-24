@@ -149,6 +149,7 @@ VISION_PROVIDER_REF="${VISION_PROVIDER_FAMILY}.${VISION_PROVIDER_ALIAS}"
 VISION_TIMEOUT_SECS=$(first_nonempty "${VISION_TIMEOUT_SECS:-}" "120")
 SHELL_TIMEOUT_SECS=$(first_nonempty "${SHELL_TIMEOUT_SECS:-}" "300")
 SHELL_TOOL_TIMEOUT_SECS=$(first_nonempty "${SHELL_TOOL_TIMEOUT_SECS:-}" "$SHELL_TIMEOUT_SECS")
+SKILLS_PROMPT_INJECTION_MODE=$(first_nonempty "${SKILLS_PROMPT_INJECTION_MODE:-}" "full")
 
 validate_provider_segment "MODEL_PROVIDER_FAMILY" "$MODEL_PROVIDER_FAMILY"
 validate_provider_segment "MODEL_PROVIDER_ALIAS" "$MODEL_PROVIDER_ALIAS"
@@ -220,6 +221,39 @@ servers = [
   { name = "$(toml_escape "${MCP_SERVER_NAME:-home}")", transport = "$(toml_escape "${MCP_TRANSPORT:-sse}")", url = "$(toml_escape "$MCP_URL")", headers = $headers, tool_timeout_secs = ${MCP_TOOL_TIMEOUT_SECS:-120} },
 ]
 EOF
+}
+
+write_skills_block() {
+  cat <<EOF
+
+[skills]
+allow_scripts = $(toml_bool "${SKILLS_ALLOW_SCRIPTS:-false}")
+open_skills_enabled = $(toml_bool "${SKILLS_OPEN_SKILLS_ENABLED:-false}")
+prompt_injection_mode = "$(toml_escape "$SKILLS_PROMPT_INJECTION_MODE")"
+registry_url = "$(toml_escape "${SKILLS_REGISTRY_URL:-https://github.com/zeroclaw-labs/zeroclaw-skills}")"
+EOF
+  if [ -n "${SKILLS_EXTRA_REGISTRIES:-}" ]; then
+    printf 'extra_registries = %s\n' "$SKILLS_EXTRA_REGISTRIES"
+  fi
+  cat <<EOF
+
+[skills.skill_creation]
+enabled = $(toml_bool "${SKILL_CREATION_ENABLED:-false}")
+max_skills = ${SKILL_CREATION_MAX_SKILLS:-500}
+similarity_threshold = ${SKILL_CREATION_SIMILARITY_THRESHOLD:-0.85}
+
+[skills.install_suggestions]
+enabled = $(toml_bool "${SKILL_INSTALL_SUGGESTIONS_ENABLED:-false}")
+
+[skills.skill_improvement]
+enabled = $(toml_bool "${SKILL_IMPROVEMENT_ENABLED:-false}")
+cooldown_secs = ${SKILL_IMPROVEMENT_COOLDOWN_SECS:-3600}
+nudge_interval_iterations = ${SKILL_IMPROVEMENT_NUDGE_INTERVAL_ITERATIONS:-10}
+max_review_iterations = ${SKILL_IMPROVEMENT_MAX_REVIEW_ITERATIONS:-8}
+EOF
+  if [ -n "${SKILL_BUNDLES_TOML:-}" ]; then
+    printf '\n%s\n' "$SKILL_BUNDLES_TOML"
+  fi
 }
 
 cat > "$CONFIG_PATH" <<EOF
@@ -344,6 +378,7 @@ model_provider = "$(toml_escape "$MODEL_PROVIDER_REF")"
 risk_profile = "root"
 runtime_profile = "daemon"
 channels = ["matrix.home"]
+skill_bundles = $(toml_array_csv "${AGENT_SKILL_BUNDLES:-}")
 
 [agents.main.workspace]
 path = "$(toml_escape "$WORKSPACE_DIR")"
@@ -399,6 +434,7 @@ timeout_secs = ${SHELL_TOOL_TIMEOUT_SECS}
 EOF
 
 write_mcp_block >> "$CONFIG_PATH"
+write_skills_block >> "$CONFIG_PATH"
 
 if [ "${RENDER_ONLY:-false}" = "true" ]; then
   exit 0

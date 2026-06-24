@@ -8,18 +8,20 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 try:
     from config_store import ConfigError, ConfigStore, redact, to_json
     from ai_fill import PromptTemplateAiFiller
     from docker_controller import DockerApiError, build_controller_from_env
     from observability import agent_identifier, enrich_status, history_from_env, redact_lines, redact_text, utc_now
+    from skill_store import SkillStore
 except ModuleNotFoundError:  # pragma: no cover - package import path for tests
     from .config_store import ConfigError, ConfigStore, redact, to_json
     from .ai_fill import PromptTemplateAiFiller
     from .docker_controller import DockerApiError, build_controller_from_env
     from .observability import agent_identifier, enrich_status, history_from_env, redact_lines, redact_text, utc_now
+    from .skill_store import SkillStore
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +44,7 @@ STORE = build_store()
 DOCKER = build_controller_from_env(REPO_ROOT)
 HISTORY = history_from_env(STORE.generated_dir)
 AI_FILLER = PromptTemplateAiFiller()
+SKILLS = SkillStore(REPO_ROOT)
 
 
 def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -223,6 +226,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
             self.route_collection(method, "prompt_templates", segments[2:], query)
             return
 
+        if len(segments) >= 2 and segments[:2] == ["api", "skills"]:
+            self.route_skills(method, segments[2:], query)
+            return
+
         if len(segments) >= 2 and segments[:2] == ["api", "agents"]:
             self.route_agents(method, segments[2:], query)
             return
@@ -255,6 +262,65 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return
 
         error_response(self, 405, "method_not_allowed", "Unsupported collection operation.", {"method": method})
+
+    def route_skills(self, method: str, segments: list[str], query: dict[str, list[str]]) -> None:
+        config = STORE.load()
+        if segments == ["bundles"] and method == "GET":
+            success(self, 200, {"bundles": SKILLS.list_bundles(config)})
+            return
+        if segments == ["bundles"] and method == "POST":
+            success(self, 201, STORE.create_item("skill_bundles", self.read_json()))
+            return
+        if len(segments) == 2 and segments[0] == "bundles":
+            bundle = segments[1]
+            if method == "PUT":
+                success(self, 200, STORE.update_item("skill_bundles", bundle, self.read_json()))
+                return
+            if method == "DELETE":
+                success(self, 200, STORE.delete_item("skill_bundles", bundle))
+                return
+        if len(segments) == 3 and segments[0] == "bundles" and segments[2] == "skills":
+            bundle = segments[1]
+            if method == "GET":
+                success(self, 200, {"skills": SKILLS.list_skills(config, bundle)})
+                return
+            if method == "POST":
+                result = SKILLS.create_skill(config, bundle, self.read_json())
+                HISTORY.append("skill-create", result=result)
+                success(self, 201, result)
+                return
+        if len(segments) == 4 and segments[0] == "bundles" and segments[2] == "skills":
+            bundle, name = segments[1], segments[3]
+            if method == "GET":
+                success(self, 200, SKILLS.read_skill(config, bundle, name))
+                return
+            if method == "PUT":
+                result = SKILLS.write_skill(config, bundle, name, self.read_json())
+                HISTORY.append("skill-write", result={"bundle": bundle, "name": name})
+                success(self, 200, result)
+                return
+            if method == "DELETE":
+                purge = self.parse_bool((query.get("purge") or ["false"])[0])
+                result = SKILLS.remove_skill(config, bundle, name, purge=purge)
+                HISTORY.append("skill-delete", result=result)
+                success(self, 200, result)
+                return
+        if len(segments) == 5 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "files":
+            result = SKILLS.write_support_file(config, segments[1], segments[3], self.read_json())
+            HISTORY.append("skill-file-write", result=result)
+            success(self, 200, result)
+            return
+        if len(segments) == 6 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "files":
+            file_path = unquote(segments[5])
+            if method == "GET":
+                success(self, 200, SKILLS.read_support_file(config, segments[1], segments[3], file_path))
+                return
+            if method == "DELETE":
+                result = SKILLS.delete_support_file(config, segments[1], segments[3], file_path)
+                HISTORY.append("skill-file-delete", result=result)
+                success(self, 200, result)
+                return
+        error_response(self, 405, "method_not_allowed", "Unsupported skills operation.", {"method": method})
 
     def route_agents(self, method: str, segments: list[str], query: dict[str, list[str]]) -> None:
         if not segments:
@@ -298,6 +364,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
             identifier, action = segments
             config = STORE.load()
             agent = STORE.get_agent(identifier)
+            if method == "GET" and action == "skills":
+                success(self, 200, SKILLS.agent_skills(config, agent))
+                return
             if method == "POST" and action == "validate":
                 success(self, 200, STORE.validate_agent(identifier))
                 return

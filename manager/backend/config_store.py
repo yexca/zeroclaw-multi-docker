@@ -23,6 +23,7 @@ PROFILE_COLLECTIONS = {
 }
 
 PROMPT_TEMPLATE_KEY = "prompt_templates"
+SKILL_BUNDLE_KEY = "skill_bundles"
 DEFAULT_PROMPT_TEMPLATE_FILES = [
     "AGENTS.md",
     "SOUL.md",
@@ -89,6 +90,35 @@ def default_config() -> dict[str, Any]:
             "matrix": [],
             "mcp": [],
         },
+        "skills": {
+            "allow_scripts": False,
+            "open_skills_enabled": False,
+            "registry_url": "https://github.com/zeroclaw-labs/zeroclaw-skills",
+            "prompt_injection_mode": "full",
+            "extra_registries": [],
+            "skill_creation": {
+                "enabled": False,
+                "max_skills": 500,
+                "similarity_threshold": 0.85,
+            },
+            "install_suggestions": {
+                "enabled": False,
+            },
+            "skill_improvement": {
+                "enabled": False,
+                "cooldown_secs": 3600,
+                "nudge_interval_iterations": 10,
+                "max_review_iterations": 8,
+            },
+        },
+        "skill_bundles": [
+            {
+                "id": "core",
+                "directory": "shared/skills/core",
+                "include": [],
+                "exclude": [],
+            }
+        ],
         "prompt_templates": [],
         "agents": [],
     }
@@ -376,7 +406,13 @@ class ConfigStore:
         }
         config[PROMPT_TEMPLATE_KEY] = normalize_collection(config.get(PROMPT_TEMPLATE_KEY))
         config[PROMPT_TEMPLATE_KEY] = self._normalize_prompt_templates(config[PROMPT_TEMPLATE_KEY])
+        config[SKILL_BUNDLE_KEY] = self._normalize_skill_bundles(config.get(SKILL_BUNDLE_KEY))
+        if not isinstance(config.get("skills"), dict):
+            config["skills"] = default_config()["skills"]
+        config["skills"] = self._normalize_skills_config(config["skills"])
         config["agents"] = normalize_collection(config.get("agents"))
+        for agent in config["agents"]:
+            agent["skill_bundles"] = self._normalize_string_list(agent.get("skill_bundles"))
         return config
 
     def _normalize_prompt_templates(self, templates: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -393,6 +429,37 @@ class ConfigStore:
                     normalized_files[filename] = content
             template["files"] = normalized_files
         return templates
+
+    def _normalize_skill_bundles(self, value: Any) -> list[dict[str, Any]]:
+        bundles = normalize_collection(value)
+        if not bundles:
+            bundles = [{"id": "core", "directory": "shared/skills/core", "include": [], "exclude": []}]
+        for bundle in bundles:
+            identifier = item_id(bundle)
+            if identifier:
+                bundle["id"] = str(identifier)
+            bundle["include"] = self._normalize_string_list(bundle.get("include"))
+            bundle["exclude"] = self._normalize_string_list(bundle.get("exclude"))
+            if bundle.get("directory") is not None:
+                bundle["directory"] = str(bundle.get("directory") or "")
+        return bundles
+
+    def _normalize_skills_config(self, value: dict[str, Any]) -> dict[str, Any]:
+        defaults = default_config()["skills"]
+        result = deep_merge(defaults, value if isinstance(value, dict) else {})
+        mode = str(result.get("prompt_injection_mode") or "full").strip().lower()
+        result["prompt_injection_mode"] = mode if mode in {"full", "compact"} else "full"
+        result["allow_scripts"] = bool(result.get("allow_scripts"))
+        result["open_skills_enabled"] = bool(result.get("open_skills_enabled"))
+        result["extra_registries"] = [item for item in result.get("extra_registries", []) if isinstance(item, dict)]
+        return result
+
+    def _normalize_string_list(self, value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str):
+            return [line.strip() for line in value.splitlines() if line.strip()]
+        return []
 
     def _default_prompt_template_files(self) -> dict[str, str]:
         template_dirs = [Path(__file__).resolve().parent / "prompt_templates"]
@@ -414,6 +481,8 @@ class ConfigStore:
             return config[parent][child]
         if kind == "prompt_templates":
             return config[PROMPT_TEMPLATE_KEY]
+        if kind == "skill_bundles":
+            return config[SKILL_BUNDLE_KEY]
         if kind == "agents":
             return config["agents"]
         raise ConfigError("unknown_collection", "Unknown collection type.", {"kind": kind}, 404)

@@ -64,6 +64,7 @@ services:
       - ./bootstrap:/app/bootstrap:ro
       - ./config:/app/config
       - ./instances:/app/instances
+      - ./shared:/app/shared
     networks:
       - default
       - manager-control

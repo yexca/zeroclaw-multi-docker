@@ -24,6 +24,31 @@ paths:
   # host_project_dir: /absolute/path/to/zeroclaw-dockyard
   # host_instances_dir: /absolute/path/to/zeroclaw-dockyard/instances
   # host_bootstrap_dir: /absolute/path/to/zeroclaw-dockyard/bootstrap
+  # host_shared_dir: /absolute/path/to/zeroclaw-dockyard/shared
+
+skills:
+  allow_scripts: false
+  open_skills_enabled: false
+  registry_url: https://github.com/zeroclaw-labs/zeroclaw-skills
+  prompt_injection_mode: full
+  extra_registries: []
+  skill_creation:
+    enabled: false
+    max_skills: 500
+    similarity_threshold: 0.85
+  install_suggestions:
+    enabled: false
+  skill_improvement:
+    enabled: false
+    cooldown_secs: 3600
+    nudge_interval_iterations: 10
+    max_review_iterations: 8
+
+skill_bundles:
+  - id: core
+    directory: shared/skills/core
+    include: []
+    exclude: []
 
 defaults:
   zeroclaw_image: ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
@@ -139,6 +164,8 @@ agents:
     matrix_profile: matrix-default
     mcp_profile: mcp-home
     prompt_template: default
+    skill_bundles:
+      - core
     proactive:
       enabled: true
       random_min_minutes: 120
@@ -164,6 +191,8 @@ agents:
     matrix_profile: matrix-default
     mcp_profile: mcp-home
     prompt_template: default
+    skill_bundles:
+      - core
     matrix:
       user_id: "@agent2:matrix.example.com"
       device_id: ZEROCLAW_AGENT2
@@ -179,6 +208,8 @@ agents:
     matrix_profile: matrix-default
     mcp_profile: mcp-home
     prompt_template: default
+    skill_bundles:
+      - core
     matrix:
       user_id: "@agent3:matrix.example.com"
       device_id: ZEROCLAW_AGENT3

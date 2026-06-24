@@ -50,6 +50,27 @@ Markdown content for prompt template files. The request body includes
 does not save the prompt template; the WebUI applies the result to the draft and
 operators save it explicitly.
 
+## Skills
+
+- `GET /api/skills/bundles`
+- `POST /api/skills/bundles`
+- `PUT /api/skills/bundles/{id}`
+- `DELETE /api/skills/bundles/{id}`
+- `GET /api/skills/bundles/{id}/skills`
+- `POST /api/skills/bundles/{id}/skills`
+- `GET /api/skills/bundles/{id}/skills/{name}`
+- `PUT /api/skills/bundles/{id}/skills/{name}`
+- `DELETE /api/skills/bundles/{id}/skills/{name}`
+- `POST /api/skills/bundles/{id}/skills/{name}/files`
+- `GET /api/skills/bundles/{id}/skills/{name}/files/{path}`
+- `DELETE /api/skills/bundles/{id}/skills/{name}/files/{path}`
+
+Skills use the canonical Agent Skills layout: one directory per skill, a
+`SKILL.md` file with YAML frontmatter, and optional `scripts/`,
+`references/`, and `assets/` subdirectories. Bundle directories must resolve
+inside the project `shared/` directory. Deleting a skill archives it under
+`shared/skills/_deleted/` unless `purge=true` is passed.
+
 ## Agents
 
 - `GET /api/agents`
@@ -57,6 +78,7 @@ operators save it explicitly.
 - `GET /api/agents/{id}`
 - `PUT /api/agents/{id}`
 - `DELETE /api/agents/{id}`
+- `GET /api/agents/{id}/skills`
 - `POST /api/agents/{id}/validate`
 - `POST /api/agents/{id}/apply-template`
 - `POST /api/agents/{id}/sync-to-runtime`

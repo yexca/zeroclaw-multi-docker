@@ -41,3 +41,7 @@ instances/**/*.png
 instances/**/*.jpg
 instances/**/*.jpeg
 instances/**/*.webp
+
+# Shared skill bundles are local/operator-authored by default.
+shared/*
+!shared/.gitkeep

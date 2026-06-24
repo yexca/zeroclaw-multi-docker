@@ -23,8 +23,34 @@ secret files are ignored by Git.
 - Agents: create, edit, validate, start, stop, restart, delete, export, and
   apply prompt templates.
 - Profiles: edit reusable LLM, Vision LLM, Matrix, and MCP profiles.
+- Skills: edit runtime skill settings, skill bundles, canonical `SKILL.md`
+  files, and support files.
 - Prompt templates: edit workspace files that can be applied to agents.
 - Export: write redacted generated configuration under `config/generated/`.
+
+## Skills
+
+The Skills view manages canonical Agent Skills. A bundle points at a directory
+under `shared/skills/`, and each skill is stored as:
+
+```text
+shared/skills/<bundle>/<skill>/
+  SKILL.md
+  scripts/
+  references/
+  assets/
+```
+
+`SKILL.md` uses YAML frontmatter (`name`, `description`, optional `version`,
+`author`, `license`, `category`, and `tags`) followed by Markdown instructions.
+Support files can be written under `references/`, `scripts/`, or `assets/`.
+Script files are blocked unless `skills.allow_scripts` is enabled.
+
+Agents load skills by listing bundle aliases in the Agent Editor's Skill
+bundles field. The manager renders those aliases into the agent's ZeroClaw
+`config.toml` and syncs `shared/` into runtime volumes before agent
+start/restart. In bind storage mode, `./shared` is mounted into the agent at
+`/zeroclaw-data/shared`.
 
 ## Prompt Templates
 
@@ -215,6 +241,7 @@ Do not commit local/runtime files:
 - `config/secrets.local.yaml`
 - `config/generated/*`
 - `instances/*`
+- `shared/*` unless you intentionally want to version local skill bundles
 
 ## Troubleshooting
 

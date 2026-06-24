@@ -5,6 +5,7 @@ import { createThemeController } from "./theme.mjs";
 const PROMPT_SYSTEM_FILES = ["AGENTS.md", "SOUL.md", "TOOLS.md", "IDENTITY.md", "USER.md", "MEMORY.md"];
 const PROJECT_OPTIONAL_FILES = ["PROACTIVE.md"];
 const TEMPLATE_FILES = [...PROMPT_SYSTEM_FILES, "HEARTBEAT.md", ...PROJECT_OPTIONAL_FILES];
+const SKILL_SUPPORT_DIRS = ["references", "scripts", "assets"];
 const DEFAULT_ZEROCLAW_IMAGE = "ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian";
 const DEFAULT_AGENT_HOST_PORT = 42641;
 const DEFAULT_PROACTIVE_PROMPT =
@@ -297,7 +298,7 @@ Update this file as you evolve. Your identity is yours to shape.
 (Track unfinished tasks and follow-ups here)
 `
 };
-const TABS = ["dashboard", "agents", "llm", "vision", "matrix", "mcp", "prompts", "export", "resources"];
+const TABS = ["dashboard", "agents", "llm", "vision", "matrix", "mcp", "skills", "prompts", "export", "resources"];
 const DEFAULT_TAB = "agents";
 const SECRET_KEYS = ["api_key", "token", "password", "recovery_key", "secret"];
 const LLM_PRESETS = {
@@ -386,6 +387,14 @@ const state = {
     : DEFAULT_TAB,
   selectedAgentId: "",
   selectedTemplateId: "",
+  selectedSkillBundleId: "",
+  selectedSkillName: "",
+  selectedSkillFile: "",
+  skillBundleSkills: {},
+  skillDocuments: {},
+  skillFileDraft: "",
+  skillFilePathDraft: "references/notes.md",
+  skillNewOpen: false,
   selectedTemplateFile: "",
   pendingTemplateFileName: "",
   dashboard: null,
@@ -454,6 +463,34 @@ function selectedTemplate() {
     collection("prompt_templates")[0] ||
     null
   );
+}
+
+function skillBundles() {
+  return state.config?.skill_bundles || [];
+}
+
+function selectedSkillBundle() {
+  return skillBundles().find((bundle) => itemId(bundle) === state.selectedSkillBundleId) || skillBundles()[0] || null;
+}
+
+function selectedSkillList() {
+  const bundle = selectedSkillBundle();
+  return bundle ? state.skillBundleSkills[itemId(bundle)] || [] : [];
+}
+
+function selectedSkill() {
+  return selectedSkillList().find((skill) => skill.name === state.selectedSkillName) || selectedSkillList()[0] || null;
+}
+
+function selectedSkillDocKey() {
+  const bundle = selectedSkillBundle();
+  const skill = selectedSkill();
+  return bundle && skill ? `${itemId(bundle)}:${skill.name}` : "";
+}
+
+function selectedSkillDoc() {
+  const key = selectedSkillDocKey();
+  return key ? state.skillDocuments[key] || null : null;
 }
 
 function escapeHtml(value) {
@@ -764,8 +801,24 @@ async function refreshConfig(shouldRender = true) {
   state.config = await api("/api/config");
   state.selectedAgentId = selectedAgent() ? itemId(selectedAgent()) : "";
   state.selectedTemplateId = selectedTemplate() ? itemId(selectedTemplate()) : "";
+  state.selectedSkillBundleId = selectedSkillBundle() ? itemId(selectedSkillBundle()) : "";
   state.selectedTemplateFile = selectedTemplate() ? selectedTemplateFile(selectedTemplate()) : "";
   if (shouldRender) render();
+}
+
+async function refreshSkillList(bundleId = state.selectedSkillBundleId) {
+  if (!bundleId) return;
+  const result = await api(`/api/skills/bundles/${encodeURIComponent(bundleId)}/skills`);
+  state.skillBundleSkills[bundleId] = result.skills || [];
+  if (!state.selectedSkillName && state.skillBundleSkills[bundleId][0]) {
+    state.selectedSkillName = state.skillBundleSkills[bundleId][0].name;
+  }
+}
+
+async function refreshSkillDocument(bundleId = state.selectedSkillBundleId, skillName = state.selectedSkillName) {
+  if (!bundleId || !skillName) return;
+  const result = await api(`/api/skills/bundles/${encodeURIComponent(bundleId)}/skills/${encodeURIComponent(skillName)}`);
+  state.skillDocuments[`${bundleId}:${skillName}`] = result;
 }
 
 async function refreshAgentStatus(agentId) {
@@ -1169,6 +1222,7 @@ function selectField(labelKey, name, optionsHtml, attrs = "", helpKey = "") {
 const ACTION_ICONS = {
   "actions.applyTemplate": "file-check",
   "actions.aiFill": "sparkles",
+  "actions.cancel": "x",
   "actions.create": "plus",
   "actions.delete": "trash",
   "actions.downloadLogs": "download",
@@ -1288,6 +1342,7 @@ function renderSelectedTab() {
   if (state.selectedTab === "vision") return renderProfileManager("vision");
   if (state.selectedTab === "matrix") return renderProfileManager("matrix");
   if (state.selectedTab === "mcp") return renderProfileManager("mcp");
+  if (state.selectedTab === "skills") return renderSkillsManager();
   if (state.selectedTab === "prompts") return renderPromptTemplates();
   if (state.selectedTab === "export") return renderExport();
   return "";
@@ -1697,6 +1752,7 @@ function renderAgentPrimaryFields(agent) {
         "fieldHelp.agent.promptTemplate"
       )}
       ${selectField("fields.mcpProfile", "mcp_profile", optionList(collection("mcp"), agent.mcp_profile, "common.none"), "", "fieldHelp.agent.mcpProfile")}
+      ${textareaField("fields.skillBundles", "skill_bundles", asLines(agent.skill_bundles), "", "fieldHelp.agent.skillBundles")}
       ${textareaField("fields.externalPeers", "matrix_external_peers", asLines(matrix.external_peers), "required", "fieldHelp.agent.externalPeers")}
     </div>
   </section>`;
@@ -1944,6 +2000,142 @@ function renderLlmAdvancedFields(item) {
   `;
 }
 
+function renderSkillsManager() {
+  const bundle = selectedSkillBundle();
+  if (bundle && !state.skillBundleSkills[itemId(bundle)] && !state.busy) {
+    queueMicrotask(() => refreshSkillList(itemId(bundle)).then(() => render()).catch((error) => showError(error.message || String(error))));
+  }
+  const skill = selectedSkill();
+  if (bundle && skill && !selectedSkillDoc() && !state.busy) {
+    queueMicrotask(() => refreshSkillDocument(itemId(bundle), skill.name).then(() => render()).catch((error) => showError(error.message || String(error))));
+  }
+  return `
+    <header class="section-header">
+      <div><h2>${escapeHtml(t("skills.title"))}</h2><p>${escapeHtml(t("skills.subtitle"))}</p></div>
+    </header>
+    <form class="form-panel" data-form="skills-settings">
+      <details class="form-section">
+        <summary>${escapeHtml(t("skills.settings"))}</summary>
+        <div class="form-grid">
+          ${checkboxField("fields.allowScripts", "allow_scripts", state.config.skills?.allow_scripts === true, "fieldHelp.skills.allowScripts")}
+          ${checkboxField("fields.openSkillsEnabled", "open_skills_enabled", state.config.skills?.open_skills_enabled === true, "fieldHelp.skills.openSkillsEnabled")}
+          ${selectField("fields.promptInjectionMode", "prompt_injection_mode", ["full", "compact"].map((mode) => `<option value="${mode}" ${state.config.skills?.prompt_injection_mode === mode ? "selected" : ""}>${escapeHtml(mode)}</option>`).join(""), "", "fieldHelp.skills.promptInjectionMode")}
+          ${field("fields.registryUrl", "registry_url", state.config.skills?.registry_url || "https://github.com/zeroclaw-labs/zeroclaw-skills", 'type="url"', "fieldHelp.skills.registryUrl")}
+          ${textareaField("fields.extraRegistries", "extra_registries", JSON.stringify(state.config.skills?.extra_registries || [], null, 2), "", "fieldHelp.skills.extraRegistries")}
+          ${checkboxField("fields.skillCreationEnabled", "skill_creation_enabled", state.config.skills?.skill_creation?.enabled === true, "fieldHelp.skills.skillCreationEnabled")}
+          ${field("fields.skillCreationMaxSkills", "skill_creation_max_skills", state.config.skills?.skill_creation?.max_skills ?? 500, 'type="number" min="1"', "fieldHelp.skills.skillCreationMaxSkills")}
+          ${field("fields.skillCreationSimilarity", "skill_creation_similarity_threshold", state.config.skills?.skill_creation?.similarity_threshold ?? 0.85, 'type="number" min="0" max="1" step="0.01"', "fieldHelp.skills.skillCreationSimilarity")}
+          ${checkboxField("fields.installSuggestionsEnabled", "install_suggestions_enabled", state.config.skills?.install_suggestions?.enabled === true, "fieldHelp.skills.installSuggestionsEnabled")}
+          ${checkboxField("fields.skillImprovementEnabled", "skill_improvement_enabled", state.config.skills?.skill_improvement?.enabled === true, "fieldHelp.skills.skillImprovementEnabled")}
+          ${field("fields.skillImprovementCooldown", "skill_improvement_cooldown_secs", state.config.skills?.skill_improvement?.cooldown_secs ?? 3600, 'type="number" min="0"', "fieldHelp.skills.skillImprovementCooldown")}
+          ${field("fields.skillImprovementNudge", "skill_improvement_nudge_interval_iterations", state.config.skills?.skill_improvement?.nudge_interval_iterations ?? 10, 'type="number" min="0"', "fieldHelp.skills.skillImprovementNudge")}
+          ${field("fields.skillImprovementMaxReview", "skill_improvement_max_review_iterations", state.config.skills?.skill_improvement?.max_review_iterations ?? 8, 'type="number" min="1"', "fieldHelp.skills.skillImprovementMaxReview")}
+        </div>
+        <div class="button-row form-actions">${actionButton("skills-settings-save", "actions.save", "primary")}</div>
+      </details>
+    </form>
+    <div class="split">
+      ${renderListPanel(
+        "skill-bundles",
+        skillBundles(),
+        state.selectedSkillBundleId,
+        `${actionButton("skill-bundle-new", "actions.create", "primary")}
+         ${actionButton("skill-bundle-save", "actions.save", "secondary", !bundle)}
+         ${actionButton("skill-bundle-delete-current", "actions.delete", "danger", !bundle)}`
+      )}
+      <div class="form-panel">
+        ${bundle ? renderSkillBundleEditor(bundle) : renderEmptyEditor("skills.empty")}
+      </div>
+    </div>
+  `;
+}
+
+function renderSkillBundleEditor(bundle) {
+  const bundleId = itemId(bundle);
+  const skills = state.skillBundleSkills[bundleId] || [];
+  const doc = selectedSkillDoc();
+  return `
+    <form data-form="skill-bundle">
+      <section class="form-section">
+        <div class="form-grid">
+          ${field("fields.id", "id", bundleId, "required", "fieldHelp.skills.bundleId")}
+          ${field("fields.directory", "directory", bundle.directory || `shared/skills/${bundleId}`, "", "fieldHelp.skills.bundleDirectory")}
+          ${textareaField("fields.includeSkills", "include", asLines(bundle.include), "", "fieldHelp.skills.includeSkills")}
+          ${textareaField("fields.excludeSkills", "exclude", asLines(bundle.exclude), "", "fieldHelp.skills.excludeSkills")}
+        </div>
+      </section>
+    </form>
+    <section class="form-section">
+      <header class="section-header compact">
+        <div><h3>${escapeHtml(t("skills.bundleSkills"))}</h3><p>${escapeHtml(t("skills.bundleSkillsHelp"))}</p></div>
+        <div class="button-row">
+          ${actionButton("skill-refresh", "actions.refreshStatus")}
+          ${actionButton("skill-new-toggle", "actions.create", "primary")}
+        </div>
+      </header>
+      ${state.skillNewOpen ? renderSkillCreateForm() : ""}
+      <div class="template-file-tabs">
+        ${
+          skills.length
+            ? skills
+                .map((skill) => `<button type="button" class="file-tab ${skill.name === state.selectedSkillName ? "active" : ""}" data-skill-name="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</button>`)
+                .join("")
+            : `<div class="empty-state compact">${escapeHtml(t("skills.noSkills"))}</div>`
+        }
+      </div>
+      ${doc ? renderSkillDocumentEditor(doc) : ""}
+    </section>
+  `;
+}
+
+function renderSkillCreateForm() {
+  return `<form class="nested-form" data-form="skill-create">
+    <div class="form-grid">
+      ${field("fields.name", "name", "", "required", "fieldHelp.skills.skillName")}
+      ${field("fields.version", "version", "0.1.0", "", "fieldHelp.skills.version")}
+      ${textareaField("fields.description", "description", "", "required", "fieldHelp.skills.description")}
+      ${textareaField("fields.tags", "tags", "", "", "fieldHelp.skills.tags")}
+    </div>
+    <div class="button-row form-actions">
+      ${actionButton("skill-create", "actions.create", "primary")}
+      ${actionButton("skill-new-toggle", "actions.cancel")}
+    </div>
+  </form>`;
+}
+
+function renderSkillDocumentEditor(doc) {
+  const fileOptions = (doc.files || []).map((file) => `<option value="${escapeHtml(file)}">${escapeHtml(file)}</option>`).join("");
+  return `<form data-form="skill-doc">
+    <div class="form-grid">
+      ${field("fields.name", "name", doc.frontmatter?.name || doc.name || "", "required", "fieldHelp.skills.skillName")}
+      ${field("fields.version", "version", doc.frontmatter?.version || "0.1.0", "", "fieldHelp.skills.version")}
+      ${field("fields.author", "author", doc.frontmatter?.author || "", "", "fieldHelp.skills.author")}
+      ${field("fields.license", "license", doc.frontmatter?.license || "", "", "fieldHelp.skills.license")}
+      ${field("fields.category", "category", doc.frontmatter?.category || "", "", "fieldHelp.skills.category")}
+      ${textareaField("fields.description", "description", doc.frontmatter?.description || "", "required", "fieldHelp.skills.description")}
+      ${textareaField("fields.tags", "tags", asLines(doc.frontmatter?.tags), "", "fieldHelp.skills.tags")}
+      ${textareaField("fields.skillBody", "body", doc.body || "", "", "fieldHelp.skills.body")}
+    </div>
+    <div class="button-row form-actions">
+      ${actionButton("skill-save", "actions.save", "primary")}
+      ${actionButton("skill-archive", "actions.archive", "danger")}
+    </div>
+    <details class="advanced-panel">
+      <summary>${escapeHtml(t("skills.supportFiles"))}</summary>
+      <div class="form-grid">
+        ${selectField("fields.supportFile", "support_file_select", `<option value="">${escapeHtml(t("common.none"))}</option>${fileOptions}`, "", "fieldHelp.skills.supportFile")}
+        ${field("fields.supportFilePath", "support_file_path", state.skillFilePathDraft || "references/notes.md", "", "fieldHelp.skills.supportFilePath")}
+        ${textareaField("fields.supportFileContent", "support_file_content", state.skillFileDraft || "", "", "fieldHelp.skills.supportFileContent")}
+      </div>
+      <div class="button-row form-actions">
+        ${actionButton("skill-file-load", "actions.load")}
+        ${actionButton("skill-file-save", "actions.save", "primary")}
+        ${actionButton("skill-file-delete", "actions.delete", "danger")}
+      </div>
+    </details>
+  </form>`;
+}
+
 function renderPromptTemplates() {
   const template = selectedTemplate();
   return `
@@ -2138,6 +2330,7 @@ function agentFromForm(form) {
     matrix_profile: requireString(data, "matrix_profile"),
     mcp_profile: String(data.get("mcp_profile") || ""),
     prompt_template: String(data.get("prompt_template") || ""),
+    skill_bundles: fromLines(String(data.get("skill_bundles") || "")),
     template_apply_mode: String(data.get("template_apply_mode") || "keep"),
     proactive: {
       ...(current.proactive || {}),
@@ -2269,6 +2462,80 @@ function templateFromForm(form) {
     id: String(data.get("id") || "").trim(),
     description: String(data.get("description") || ""),
     files
+  };
+}
+
+function skillsSettingsFromForm(form) {
+  const data = readForm(form);
+  return cleanEmptyValues({
+    ...(state.config.skills || {}),
+    allow_scripts: data.get("allow_scripts") === "on",
+    open_skills_enabled: data.get("open_skills_enabled") === "on",
+    registry_url: validateUrlLike(data.get("registry_url"), "registry_url"),
+    prompt_injection_mode: String(data.get("prompt_injection_mode") || "full"),
+    extra_registries: readJsonField(data, "extra_registries", []),
+    skill_creation: {
+      ...(state.config.skills?.skill_creation || {}),
+      enabled: data.get("skill_creation_enabled") === "on",
+      max_skills: parseOptionalNumber(data.get("skill_creation_max_skills"), fieldDisplayName("skill_creation_max_skills"), { min: 1 }) || 500,
+      similarity_threshold: parseOptionalFloat(data.get("skill_creation_similarity_threshold"), fieldDisplayName("skill_creation_similarity_threshold"), { min: 0, max: 1 }) ?? 0.85
+    },
+    install_suggestions: {
+      ...(state.config.skills?.install_suggestions || {}),
+      enabled: data.get("install_suggestions_enabled") === "on"
+    },
+    skill_improvement: {
+      ...(state.config.skills?.skill_improvement || {}),
+      enabled: data.get("skill_improvement_enabled") === "on",
+      cooldown_secs: parseOptionalNumber(data.get("skill_improvement_cooldown_secs"), fieldDisplayName("skill_improvement_cooldown_secs"), { min: 0 }) ?? 3600,
+      nudge_interval_iterations:
+        parseOptionalNumber(data.get("skill_improvement_nudge_interval_iterations"), fieldDisplayName("skill_improvement_nudge_interval_iterations"), { min: 0 }) ?? 10,
+      max_review_iterations:
+        parseOptionalNumber(data.get("skill_improvement_max_review_iterations"), fieldDisplayName("skill_improvement_max_review_iterations"), { min: 1 }) ?? 8
+    }
+  });
+}
+
+function skillBundleFromForm(form) {
+  const data = readForm(form);
+  const current = selectedSkillBundle() || {};
+  return cleanEmptyValues({
+    ...current,
+    id: requireString(data, "id"),
+    directory: String(data.get("directory") || "").trim(),
+    include: fromLines(String(data.get("include") || "")),
+    exclude: fromLines(String(data.get("exclude") || ""))
+  });
+}
+
+function skillCreateFromForm(form) {
+  const data = readForm(form);
+  const name = requireString(data, "name");
+  return {
+    name,
+    frontmatter: cleanEmptyValues({
+      name,
+      description: requireString(data, "description"),
+      version: String(data.get("version") || "0.1.0").trim(),
+      tags: fromLines(String(data.get("tags") || ""))
+    }),
+    body: ""
+  };
+}
+
+function skillDocumentFromForm(form) {
+  const data = readForm(form);
+  return {
+    frontmatter: cleanEmptyValues({
+      name: requireString(data, "name"),
+      description: requireString(data, "description"),
+      version: String(data.get("version") || "").trim(),
+      author: String(data.get("author") || "").trim(),
+      license: String(data.get("license") || "").trim(),
+      category: String(data.get("category") || "").trim(),
+      tags: fromLines(String(data.get("tags") || ""))
+    }),
+    body: String(data.get("body") || "")
   };
 }
 
@@ -2555,6 +2822,94 @@ async function handleAction(action) {
     }
   }
   if (action === "template-delete-current") return deleteTemplate(state.selectedTemplateId);
+  if (action === "skills-settings-save") {
+    let skillsConfig;
+    try {
+      skillsConfig = skillsSettingsFromForm(document.querySelector('[data-form="skills-settings"]'));
+    } catch (error) {
+      if (error instanceof FormValidationError) return alertValidation(error);
+      throw error;
+    }
+    return runAction(async () => {
+      await api("/api/config", { method: "PUT", body: JSON.stringify({ ...state.config, skills: skillsConfig }) });
+    }, "messages.saved");
+  }
+  if (action === "skill-bundle-new") {
+    const bundle = { id: nextId("bundle", skillBundles()), directory: "", include: [], exclude: [], _draft: true };
+    state.config.skill_bundles.unshift(bundle);
+    state.selectedSkillBundleId = bundle.id;
+    state.selectedSkillName = "";
+    render();
+    return;
+  }
+  if (action === "skill-bundle-save") {
+    let bundle;
+    try {
+      bundle = skillBundleFromForm(document.querySelector('[data-form="skill-bundle"]'));
+    } catch (error) {
+      if (error instanceof FormValidationError) return alertValidation(error);
+      throw error;
+    }
+    return runAction(async () => {
+      const selected = state.selectedSkillBundleId;
+      const isDraft = selected && selectedSkillBundle()?._draft === true;
+      if (selected && !isDraft) {
+        await api(`/api/skills/bundles/${encodeURIComponent(selected)}`, { method: "PUT", body: JSON.stringify(bundle) });
+      } else {
+        await api("/api/skills/bundles", { method: "POST", body: JSON.stringify(bundle) });
+      }
+      state.selectedSkillBundleId = itemId(bundle);
+    }, "messages.saved");
+  }
+  if (action === "skill-bundle-delete-current") return deleteSkillBundle(state.selectedSkillBundleId);
+  if (action === "skill-refresh") {
+    return runAction(async () => {
+      await refreshSkillList();
+      state.selectedSkillName = selectedSkill()?.name || "";
+      if (state.selectedSkillName) await refreshSkillDocument();
+    });
+  }
+  if (action === "skill-new-toggle") {
+    state.skillNewOpen = !state.skillNewOpen;
+    render();
+    return;
+  }
+  if (action === "skill-create") {
+    let payload;
+    try {
+      payload = skillCreateFromForm(document.querySelector('[data-form="skill-create"]'));
+    } catch (error) {
+      if (error instanceof FormValidationError) return alertValidation(error);
+      throw error;
+    }
+    return runAction(async () => {
+      await api(`/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills`, { method: "POST", body: JSON.stringify(payload) });
+      state.skillNewOpen = false;
+      state.selectedSkillName = payload.name;
+      await refreshSkillList();
+      await refreshSkillDocument();
+    }, "messages.saved");
+  }
+  if (action === "skill-save") {
+    let payload;
+    try {
+      payload = skillDocumentFromForm(document.querySelector('[data-form="skill-doc"]'));
+    } catch (error) {
+      if (error instanceof FormValidationError) return alertValidation(error);
+      throw error;
+    }
+    return runAction(async () => {
+      const bundle = state.selectedSkillBundleId;
+      const skill = state.selectedSkillName;
+      const result = await api(`/api/skills/bundles/${encodeURIComponent(bundle)}/skills/${encodeURIComponent(skill)}`, { method: "PUT", body: JSON.stringify(payload) });
+      state.skillDocuments[`${bundle}:${skill}`] = result;
+      await refreshSkillList(bundle);
+    }, "messages.saved");
+  }
+  if (action === "skill-archive") return archiveSkill();
+  if (action === "skill-file-load") return loadSkillSupportFile();
+  if (action === "skill-file-save") return saveSkillSupportFile();
+  if (action === "skill-file-delete") return deleteSkillSupportFile();
   if (action === "config-export") {
     return runAction(async () => {
       state.exportResult = await api("/api/export", { method: "POST", body: JSON.stringify({ filename: "resolved.yaml" }) });
@@ -2711,6 +3066,78 @@ async function deleteTemplate(id) {
   }, "messages.deleted");
 }
 
+async function deleteSkillBundle(id) {
+  if (!id || !(await confirmDanger("confirm.deleteSkillBundle"))) return;
+  const bundle = skillBundles().find((item) => itemId(item) === id);
+  if (bundle?._draft === true) {
+    state.config.skill_bundles = state.config.skill_bundles.filter((item) => itemId(item) !== id);
+    state.selectedSkillBundleId = "";
+    render();
+    return;
+  }
+  return runAction(async () => {
+    await api(`/api/skills/bundles/${encodeURIComponent(id)}`, { method: "DELETE" });
+    delete state.skillBundleSkills[id];
+    state.selectedSkillBundleId = "";
+    state.selectedSkillName = "";
+  }, "messages.deleted");
+}
+
+async function archiveSkill() {
+  const bundle = state.selectedSkillBundleId;
+  const name = state.selectedSkillName;
+  if (!bundle || !name || !(await confirmDanger("confirm.archiveSkill"))) return;
+  return runAction(async () => {
+    await api(`/api/skills/bundles/${encodeURIComponent(bundle)}/skills/${encodeURIComponent(name)}`, { method: "DELETE" });
+    delete state.skillDocuments[`${bundle}:${name}`];
+    state.selectedSkillName = "";
+    await refreshSkillList(bundle);
+  }, "messages.deleted");
+}
+
+async function loadSkillSupportFile() {
+  const form = document.querySelector('[data-form="skill-doc"]');
+  const selected = String(new FormData(form).get("support_file_select") || "").trim();
+  if (!selected) return;
+  return runAction(async () => {
+    const result = await api(
+      `/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files/${encodeURIComponent(selected)}`
+    );
+    state.skillFilePathDraft = result.file_path || selected;
+    state.skillFileDraft = result.content || "";
+  });
+}
+
+async function saveSkillSupportFile() {
+  const form = document.querySelector('[data-form="skill-doc"]');
+  const data = new FormData(form);
+  const filePath = String(data.get("support_file_path") || "").trim();
+  const content = String(data.get("support_file_content") || "");
+  return runAction(async () => {
+    await api(`/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files`, {
+      method: "POST",
+      body: JSON.stringify({ file_path: filePath, content })
+    });
+    state.skillFilePathDraft = filePath;
+    state.skillFileDraft = content;
+    await refreshSkillDocument();
+  }, "messages.saved");
+}
+
+async function deleteSkillSupportFile() {
+  const form = document.querySelector('[data-form="skill-doc"]');
+  const filePath = String(new FormData(form).get("support_file_path") || "").trim();
+  if (!filePath || !(await confirmDanger("confirm.deleteSkillFile"))) return;
+  return runAction(async () => {
+    await api(
+      `/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files/${encodeURIComponent(filePath)}`,
+      { method: "DELETE" }
+    );
+    state.skillFileDraft = "";
+    await refreshSkillDocument();
+  }, "messages.deleted");
+}
+
 function bindEvents() {
   document.addEventListener("click", async (event) => {
     if (event.target.closest("[data-notice-dismiss]")) {
@@ -2748,11 +3175,38 @@ function bindEvents() {
           state.selectedTemplateFile = "";
           state.pendingTemplateFileName = "";
         }
+        else if (kind === "skillBundles") {
+          state.selectedSkillBundleId = value;
+          state.selectedSkillName = "";
+          state.skillNewOpen = false;
+          await refreshSkillList(value);
+        }
         else state[`selected${kind}Id`] = value;
         state.validationResult = null;
         render();
         return;
       }
+    }
+
+    const skillBundleButton = event.target.closest("[data-select-skill-bundles]");
+    if (skillBundleButton) {
+      const value = skillBundleButton.dataset.selectSkillBundles;
+      state.selectedSkillBundleId = value;
+      state.selectedSkillName = "";
+      state.skillNewOpen = false;
+      await refreshSkillList(value);
+      render();
+      return;
+    }
+
+    const skillName = event.target.closest("[data-skill-name]")?.dataset.skillName;
+    if (skillName) {
+      state.selectedSkillName = skillName;
+      state.skillFileDraft = "";
+      state.skillFilePathDraft = "references/notes.md";
+      await refreshSkillDocument(state.selectedSkillBundleId, skillName);
+      render();
+      return;
     }
 
     const templateFile = event.target.closest("[data-template-file]")?.dataset.templateFile;
@@ -2811,6 +3265,10 @@ function bindEvents() {
     }
     if (event.target.matches('[name="reference_file"]')) {
       syncAiFillDraftFromForm();
+    }
+    if (event.target.matches('[name="support_file_select"]')) {
+      state.skillFilePathDraft = event.target.value || state.skillFilePathDraft;
+      render();
     }
   });
 }

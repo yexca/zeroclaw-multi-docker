@@ -31,6 +31,7 @@ class ConfigValidator:
         agents = config.get("agents") if isinstance(config.get("agents"), list) else []
 
         self._validate_server(config, errors, warnings)
+        self._validate_skill_bundles(config, errors, warnings)
         self._validate_vision_profiles(config, errors, warnings)
         self._validate_gitignore(errors, warnings)
         self._validate_agent_names(agents, errors)
@@ -94,6 +95,11 @@ class ConfigValidator:
 
         if env.get("MCP_ENABLED", "").lower() == "true" and not string_value(env.get("MCP_URL")):
             errors.append(issue("missing_mcp_url", f"{prefix}.mcp.url", "MCP URL must be non-empty when MCP is enabled."))
+
+        bundle_ids = {str(item_id(bundle) or "") for bundle in config.get("skill_bundles", []) if isinstance(bundle, dict)}
+        for index, bundle in enumerate(agent.get("skill_bundles") if isinstance(agent.get("skill_bundles"), list) else []):
+            if str(bundle) not in bundle_ids:
+                errors.append(issue("unknown_skill_bundle", f"{prefix}.skill_bundles[{index}]", "Skill bundle was not found.", {"bundle": bundle}))
 
         proactive = resolved.get("proactive") if isinstance(resolved.get("proactive"), dict) else {}
         if bool(proactive.get("enabled")):
@@ -162,6 +168,36 @@ class ConfigValidator:
         bind_host = str(server.get("bind_host") or "127.0.0.1")
         if bind_host not in {"127.0.0.1", "localhost", "::1"}:
             warnings.append(issue("non_loopback_bind", "server.bind_host", "WebUI should bind to loopback for local-only use.", {"bind_host": bind_host}))
+
+    def _validate_skill_bundles(self, config: dict[str, Any], errors: list[dict[str, Any]], warnings: list[dict[str, Any]]) -> None:
+        bundles = config.get("skill_bundles") if isinstance(config.get("skill_bundles"), list) else []
+        seen: dict[str, str] = {}
+        seen_dirs: dict[str, str] = {}
+        shared_root = (self.project_root / "shared").resolve()
+        for index, bundle in enumerate(bundles):
+            if not isinstance(bundle, dict):
+                errors.append(issue("invalid_skill_bundle", f"skill_bundles[{index}]", "Skill bundle entries must be objects."))
+                continue
+            alias = str(item_id(bundle) or "")
+            field = f"skill_bundles[{index}]"
+            if not re.match(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", alias):
+                errors.append(issue("invalid_skill_bundle_id", f"{field}.id", "Skill bundle ID must use letters, numbers, underscore, or hyphen.", {"id": alias}))
+            if alias in seen:
+                errors.append(issue("duplicate_skill_bundle", field, "Skill bundle IDs must be unique.", {"id": alias, "first": seen[alias]}))
+            seen[alias] = field
+            directory = str(bundle.get("directory") or f"shared/skills/{alias}").strip()
+            path = Path(directory)
+            resolved = (path if path.is_absolute() else self.project_root / path).resolve()
+            if shared_root != resolved and shared_root not in resolved.parents:
+                errors.append(issue("unsafe_skill_bundle_directory", f"{field}.directory", "Skill bundle directory must stay inside the project shared directory.", {"path": str(resolved), "shared": str(shared_root)}))
+            normalized = str(resolved).lower()
+            if normalized in seen_dirs:
+                errors.append(issue("duplicate_skill_bundle_directory", f"{field}.directory", "Skill bundle directories must be unique.", {"path": str(resolved), "first": seen_dirs[normalized]}))
+            seen_dirs[normalized] = field
+            for list_key in ("include", "exclude"):
+                values = bundle.get(list_key)
+                if values is not None and not isinstance(values, list):
+                    errors.append(issue("invalid_skill_bundle_list", f"{field}.{list_key}", "Skill bundle include/exclude must be lists."))
 
     def _validate_vision_profiles(self, config: dict[str, Any], errors: list[dict[str, Any]], warnings: list[dict[str, Any]]) -> None:
         profiles = config.get("profiles") if isinstance(config.get("profiles"), dict) else {}
