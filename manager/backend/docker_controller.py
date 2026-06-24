@@ -63,7 +63,10 @@ class DockerController(Protocol):
     def reset_matrix_state(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
         ...
 
-    def audit_resources(self, config: dict[str, Any]) -> dict[str, Any]:
+    def audit_resources(self, config: dict[str, Any], decisions: dict[str, Any] | None = None) -> dict[str, Any]:
+        ...
+
+    def resource_action(self, config: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
         ...
 
 
@@ -376,8 +379,9 @@ class DockerApiController:
             actions.append("matrix_state_removed_from_local")
         return self.operation_result("reset-matrix-state", spec, container or {}, actions)
 
-    def audit_resources(self, config: dict[str, Any]) -> dict[str, Any]:
+    def audit_resources(self, config: dict[str, Any], decisions: dict[str, Any] | None = None) -> dict[str, Any]:
         self.configure_client(config)
+        decisions = decisions or {"ignored": [], "adopted": []}
         agents = config.get("agents") if isinstance(config.get("agents"), list) else []
         expected_containers: dict[str, dict[str, Any]] = {}
         expected_volumes: dict[str, dict[str, Any]] = {}
@@ -434,10 +438,29 @@ class DockerApiController:
                 "networks": list(expected_networks.values()),
                 "errors": expected_errors,
             },
-            "containers": self.classify_container_resources(containers, expected_containers),
-            "volumes": self.classify_named_resources(volumes, expected_volumes),
-            "networks": self.classify_named_resources(networks, expected_networks),
+            "containers": self.apply_resource_decisions(self.classify_container_resources(containers, expected_containers), "container", decisions),
+            "volumes": self.apply_resource_decisions(self.classify_named_resources(volumes, expected_volumes), "volume", decisions),
+            "networks": self.apply_resource_decisions(self.classify_named_resources(networks, expected_networks), "network", decisions),
         }
+
+    def resource_action(self, config: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        self.configure_client(config)
+        kind = str(payload.get("kind") or "")
+        name = str(payload.get("name") or "")
+        action = str(payload.get("action") or "")
+        if kind not in {"container", "volume", "network"}:
+            raise ConfigError("invalid_resource_kind", "Unsupported Docker resource kind.", {"kind": kind}, 422)
+        if action not in {"delete", "migrate"}:
+            raise ConfigError("invalid_resource_action", "Unsupported Docker resource action.", {"action": action}, 422)
+        if not name:
+            raise ConfigError("missing_resource_name", "Docker resource name is required.", status=422)
+        if action == "delete":
+            self.ensure_resource_delete_allowed(config, kind, name)
+            return self.delete_resource(kind, name)
+        target_name = str(payload.get("target_name") or "")
+        if kind != "volume":
+            raise ConfigError("unsupported_migration", "Only volume migration is currently supported.", {"kind": kind}, 422)
+        return self.migrate_volume(name, target_name)
 
     def reconcile_proactive_container(self, config: dict[str, Any], agent: dict[str, Any], agent_spec: "ContainerSpec") -> list[str]:
         proactive_spec = self.build_proactive_spec(config, agent, agent_spec=agent_spec)
@@ -854,6 +877,126 @@ class DockerApiController:
                 buckets["expected"].append({**expected_row, "state": "absent", "status": "absent", "classification": "expected_absent"})
         return buckets
 
+    def apply_resource_decisions(self, buckets: dict[str, list[dict[str, Any]]], kind: str, decisions: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+        ignored = {item.get("name") for item in decisions.get("ignored", []) if item.get("kind") == kind}
+        adopted = {item.get("name") for item in decisions.get("adopted", []) if item.get("kind") == kind}
+        if not ignored and not adopted:
+            return buckets
+        result = {key: list(value) for key, value in buckets.items()}
+        result.setdefault("ignored", [])
+        result.setdefault("adopted", [])
+        for source_bucket in ("conflicts", "legacy", "orphans"):
+            remaining = []
+            for row in result.get(source_bucket, []):
+                name = row.get("name")
+                if name in ignored:
+                    result["ignored"].append({**row, "classification": "ignored", "original_classification": row.get("classification")})
+                elif name in adopted:
+                    result["adopted"].append({**row, "classification": "adopted", "original_classification": row.get("classification")})
+                else:
+                    remaining.append(row)
+            result[source_bucket] = remaining
+        return result
+
+    def ensure_resource_delete_allowed(self, config: dict[str, Any], kind: str, name: str) -> None:
+        audit = self.audit_resources(config, {"ignored": [], "adopted": []})
+        group_key = {"container": "containers", "volume": "volumes", "network": "networks"}[kind]
+        group = audit.get(group_key, {})
+        protected = list(group.get("expected", [])) + list(group.get("conflicts", []))
+        if any(row.get("name") == name for row in protected):
+            raise ConfigError(
+                "resource_delete_refused",
+                "Refusing to delete a resource expected by the current configuration.",
+                {"kind": kind, "name": name},
+                409,
+            )
+
+    def delete_resource(self, kind: str, name: str) -> dict[str, Any]:
+        if kind == "container":
+            container = self.inspect_container(name)
+            self.remove_container(str(container.get("Id") or name), force=True)
+        elif kind == "volume":
+            self.client.request("DELETE", f"/volumes/{quote(name, safe='')}")
+        elif kind == "network":
+            self.client.request("DELETE", f"/networks/{quote(name, safe='')}")
+        return {"action": "delete", "kind": kind, "name": name, "deleted": True, "timestamp": self._now()}
+
+    def migrate_volume(self, source_name: str, target_name: str) -> dict[str, Any]:
+        if not target_name:
+            raise ConfigError("missing_target_name", "Target volume name is required for migration.", status=422)
+        self.ensure_volume(target_name)
+        helper_name = f"zeroclaw-migrate-volume-{safe_volume_part(source_name)}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        script = """
+import os
+import shutil
+import stat
+from pathlib import Path
+
+source = Path('/source')
+target = Path('/target')
+
+def copy_tree(src, dst):
+    if not src.exists():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in src.iterdir():
+        destination = dst / item.name
+        try:
+            mode = item.lstat().st_mode
+        except OSError:
+            continue
+        if stat.S_ISSOCK(mode) or stat.S_ISFIFO(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode):
+            continue
+        if item.is_dir():
+            if destination.exists():
+                shutil.rmtree(destination)
+            copy_tree(item, destination)
+        elif item.is_symlink():
+            if destination.exists() or destination.is_symlink():
+                destination.unlink()
+            destination.symlink_to(os.readlink(item))
+        else:
+            if destination.exists() and destination.is_dir():
+                shutil.rmtree(destination)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, destination)
+
+copy_tree(source, target)
+"""
+        payload = {
+            "Image": SYNC_HELPER_IMAGE,
+            "Cmd": ["python", "-c", script],
+            "Labels": {MANAGER_LABEL: "true", ROLE_LABEL: "sync"},
+            "HostConfig": {
+                "AutoRemove": False,
+                "Mounts": [
+                    {"Type": "volume", "Source": source_name, "Target": "/source", "ReadOnly": True},
+                    {"Type": "volume", "Source": target_name, "Target": "/target"},
+                ],
+            },
+        }
+        container_id = ""
+        try:
+            created = self.client.request("POST", "/containers/create", payload=payload, query={"name": helper_name})
+            container_id = str(created.get("Id") or "")
+            self.client.request("POST", f"/containers/{container_id}/start")
+            result = self.client.request("POST", f"/containers/{container_id}/wait")
+            status_code = result.get("StatusCode") if isinstance(result, dict) else None
+            if status_code != 0:
+                logs = ""
+                try:
+                    logs = decode_docker_log_stream(self.client.request("GET", f"/containers/{container_id}/logs", query={"stdout": 1, "stderr": 1}, raw=True))
+                except DockerApiError:
+                    pass
+                raise ConfigError("volume_migration_failed", "Volume migration failed.", {"status_code": status_code, "logs": logs}, 502)
+        finally:
+            if container_id:
+                try:
+                    self.remove_container(container_id, force=True)
+                except DockerApiError:
+                    pass
+        return {"action": "migrate", "kind": "volume", "source_name": source_name, "target_name": target_name, "timestamp": self._now()}
+
     def sync_local_to_runtime(self, spec: "ContainerSpec") -> None:
         spec.local_instance_dir.mkdir(parents=True, exist_ok=True)
         (spec.local_instance_dir / "workspace").mkdir(parents=True, exist_ok=True)
@@ -1154,7 +1297,7 @@ class FakeDockerController:
     def reset_matrix_state(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
         return self._operation("reset-matrix-state", agent, "stubbed")
 
-    def audit_resources(self, config: dict[str, Any]) -> dict[str, Any]:
+    def audit_resources(self, config: dict[str, Any], decisions: dict[str, Any] | None = None) -> dict[str, Any]:
         return {
             "checked_at": self._now(),
             "expected": {"containers": [], "volumes": [], "networks": [], "errors": []},
@@ -1163,6 +1306,9 @@ class FakeDockerController:
             "networks": {"expected": [], "orphans": [], "legacy": [], "conflicts": []},
             "controller": "fake",
         }
+
+    def resource_action(self, config: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        return {"action": payload.get("action"), "kind": payload.get("kind"), "name": payload.get("name"), "controller": "fake", "timestamp": self._now()}
 
     def _operation(self, operation: str, agent: dict[str, Any], state: str) -> dict[str, Any]:
         return {

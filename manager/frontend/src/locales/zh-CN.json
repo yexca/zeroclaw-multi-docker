@@ -137,7 +137,11 @@
     "addFile": "添加文件",
     "removeFile": "移除文件",
     "confirm": "确认",
-    "cancel": "取消"
+    "cancel": "取消",
+    "adopt": "接管",
+    "ignore": "忽略",
+    "migrate": "迁移",
+    "clearDecision": "清除记录"
   },
   "fields": {
     "id": "ID",
@@ -251,6 +255,7 @@
     "syncedToRuntime": "本地文件已同步到运行卷。",
     "syncedFromRuntime": "运行卷已同步回本地文件。",
     "resetMatrixState": "Matrix E2EE 状态已重置，device_id 已更新。",
+    "resourceActionDone": "Docker 资源操作已完成。",
     "resetMatrixRunning": "当前容器正在运行，请关闭后再试。",
     "started": "已请求启动。",
     "stopped": "已请求停止。",
@@ -269,7 +274,8 @@
     "deleteTemplate": "删除这个提示词模板？",
     "overwriteWorkspace": "覆盖现有工作区提示词文件？",
     "resetMatrixState": "该行为将清除 Matrix 本地加密状态，并生成该 Matrix 配置的新 device_id。如果有其他 agent 正在使用同一个 Matrix 账号或配置，可能受到影响。是否继续？",
-    "deleteTemplateFile": "移除这个自定义模板文件？"
+    "deleteTemplateFile": "移除这个自定义模板文件？",
+    "deleteDockerResource": "删除这个 Docker 资源？如果资源仍在使用中，Docker 可能会拒绝。此操作不可撤销。"
   },
   "common": {
     "loading": "加载中...",
@@ -371,6 +377,8 @@
     "orphans": "不在配置中",
     "legacy": "未跟踪的 ZeroClaw 命名资源",
     "untracked": "未跟踪的 ZeroClaw 命名资源",
+    "adopted": "已在本地接管",
+    "ignored": "已忽略",
     "conflicts": "需要确认",
     "count": "{count} 个资源",
     "emptyBucket": "这一组暂时没有资源。",
@@ -386,6 +394,7 @@
     "expectedHelp": "当前管理器配置会推导出这个资源名，并且 Docker 标签也表明它属于管理器。",
     "conflictsHelp": "当前配置会推导出这个资源名，但资源缺少管理器归属标签。这通常是旧版本创建的资源，修改前需要确认。",
     "orphansHelp": "Docker 标签表明它属于管理器，但当前配置已经不再需要这个资源。",
-    "untrackedHelp": "资源名包含 zeroclaw，但当前配置不需要它，也没有管理器归属标签。它可能属于另一套本地配置。"
+    "untrackedHelp": "资源名包含 zeroclaw，但当前配置不需要它，也没有管理器归属标签。它可能属于另一套本地配置。",
+    "migrateTargetPrompt": "目标卷名称"
   }
 }

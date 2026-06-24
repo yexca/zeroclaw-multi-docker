@@ -1338,7 +1338,9 @@ function resourceCounts(group) {
     expected: (group?.expected || []).length,
     orphans: (group?.orphans || []).length,
     legacy: (group?.legacy || []).length,
-    conflicts: (group?.conflicts || []).length
+    conflicts: (group?.conflicts || []).length,
+    ignored: (group?.ignored || []).length,
+    adopted: (group?.adopted || []).length
   };
 }
 
@@ -1350,6 +1352,8 @@ function renderResourceGroup(titleKey, group, kind) {
     ${renderResourceBucket("resources.conflicts", group.conflicts, kind, "conflicts")}
     ${renderResourceBucket("resources.orphans", group.orphans, kind, "orphans")}
     ${renderResourceBucket("resources.untracked", group.legacy, kind, "legacy")}
+    ${renderResourceBucket("resources.adopted", group.adopted, kind, "adopted")}
+    ${renderResourceBucket("resources.ignored", group.ignored, kind, "ignored")}
   </section>`;
 }
 
@@ -1380,7 +1384,29 @@ function renderResourceRow(row, kind, bucket) {
       <summary>${escapeHtml(t("resources.labels"))}</summary>
       ${renderResourceLabels(labels)}
     </details>
+    ${renderResourceActions(row, kind, bucket)}
   </article>`;
+}
+
+function renderResourceActions(row, kind, bucket) {
+  const name = row.name || "";
+  if (!name || bucket === "expected") return "";
+  const encoded = encodeURIComponent(`${kind}:${name}`);
+  const actions = [];
+  if (["conflicts", "legacy", "orphans"].includes(bucket)) {
+    actions.push(actionButton(`resource-adopt:${encoded}`, "actions.adopt"));
+    actions.push(actionButton(`resource-ignore:${encoded}`, "actions.ignore"));
+  }
+  if (["adopted", "ignored"].includes(bucket)) {
+    actions.push(actionButton(`resource-clear:${encoded}`, "actions.clearDecision"));
+  }
+  if (kind === "volume" && ["conflicts", "legacy", "orphans", "adopted", "ignored"].includes(bucket)) {
+    actions.push(actionButton(`resource-migrate:${encoded}`, "actions.migrate"));
+  }
+  if (["legacy", "orphans", "ignored"].includes(bucket)) {
+    actions.push(actionButton(`resource-delete:${encoded}`, "actions.delete", "danger"));
+  }
+  return actions.length ? `<div class="button-row resource-actions">${actions.join("")}</div>` : "";
 }
 
 function renderResourceLabels(labels) {
@@ -2261,6 +2287,9 @@ async function handleAction(action) {
   if (action === "refresh-docker-resources") {
     return runAction(refreshDockerResources);
   }
+  if (action.startsWith("resource-")) {
+    return handleResourceAction(action);
+  }
   if (action === "agent-new") {
     state.selectedAgentId = "";
     state.config.agents.unshift(defaultAgent(nextId("agent", collection("agents"))));
@@ -2467,6 +2496,38 @@ async function handleAction(action) {
       state.exportResult = await api("/api/export", { method: "POST", body: JSON.stringify({ filename: "resolved.yaml" }) });
     }, "messages.exported");
   }
+}
+
+function parseResourceAction(action) {
+  const [prefix, encoded = ""] = action.split(":", 2);
+  const resourceAction = prefix.replace("resource-", "");
+  const decoded = decodeURIComponent(encoded);
+  const separator = decoded.indexOf(":");
+  if (separator < 0) return { action: resourceAction, kind: "", name: "" };
+  return {
+    action: resourceAction,
+    kind: decoded.slice(0, separator),
+    name: decoded.slice(separator + 1)
+  };
+}
+
+async function handleResourceAction(actionText) {
+  const resource = parseResourceAction(actionText);
+  if (!resource.kind || !resource.name) return;
+  const payload = { action: resource.action, kind: resource.kind, name: resource.name };
+  if (resource.action === "delete" && !(await confirmDanger("confirm.deleteDockerResource"))) return;
+  if (resource.action === "migrate") {
+    const targetName = window.prompt(t("resources.migrateTargetPrompt"), `${resource.name}-migrated`);
+    if (!targetName) return;
+    payload.target_name = targetName.trim();
+  }
+  await runAction(async () => {
+    await api("/api/docker/resources/action", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    await refreshDockerResources();
+  }, "messages.resourceActionDone");
 }
 
 async function controlAgent(agentId, operation) {

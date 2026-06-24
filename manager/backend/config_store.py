@@ -283,6 +283,45 @@ class ConfigStore:
         self._atomic_write_yaml(target, export_payload)
         return {"path": str(target), "config": export_payload, "include_secrets": include_secrets}
 
+    def resource_decisions_path(self) -> Path:
+        return self.generated_dir / "docker-resource-decisions.json"
+
+    def load_resource_decisions(self) -> dict[str, Any]:
+        path = self.resource_decisions_path()
+        if not path.exists():
+            return {"ignored": [], "adopted": []}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"ignored": [], "adopted": []}
+        return {
+            "ignored": [item for item in raw.get("ignored", []) if isinstance(item, dict)] if isinstance(raw, dict) else [],
+            "adopted": [item for item in raw.get("adopted", []) if isinstance(item, dict)] if isinstance(raw, dict) else [],
+        }
+
+    def update_resource_decision(self, action: str, kind: str, name: str) -> dict[str, Any]:
+        if action not in {"ignore", "adopt", "clear"}:
+            raise ConfigError("invalid_resource_action", "Unsupported resource decision action.", {"action": action}, 422)
+        if kind not in {"container", "volume", "network"}:
+            raise ConfigError("invalid_resource_kind", "Unsupported Docker resource kind.", {"kind": kind}, 422)
+        if not name:
+            raise ConfigError("missing_resource_name", "Docker resource name is required.", status=422)
+        decisions = self.load_resource_decisions()
+        for bucket in ("ignored", "adopted"):
+            decisions[bucket] = [
+                item for item in decisions.get(bucket, [])
+                if not (item.get("kind") == kind and item.get("name") == name)
+            ]
+        if action in {"ignore", "adopt"}:
+            key = "ignored" if action == "ignore" else "adopted"
+            decisions[key].append({
+                "kind": kind,
+                "name": name,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        self._atomic_write_json(self.resource_decisions_path(), decisions)
+        return decisions
+
     def apply_prompt_template(self, identifier: str, payload: Any | None = None) -> dict[str, Any]:
         mode = "keep"
         if isinstance(payload, dict) and isinstance(payload.get("mode"), str):
@@ -402,6 +441,20 @@ class ConfigStore:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 yaml.safe_dump(data, handle, sort_keys=False, allow_unicode=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_name, path)
+        finally:
+            if os.path.exists(temp_name):
+                os.unlink(temp_name)
+
+    def _atomic_write_json(self, path: Path, data: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(data, handle, sort_keys=True, indent=2, ensure_ascii=True)
+                handle.write("\n")
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temp_name, path)

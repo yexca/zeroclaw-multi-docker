@@ -159,7 +159,23 @@ class ManagerHandler(BaseHTTPRequestHandler):
             return
 
         if method == "GET" and path == "/api/docker/resources":
-            success(self, 200, DOCKER.audit_resources(STORE.load()))
+            success(self, 200, DOCKER.audit_resources(STORE.load(), STORE.load_resource_decisions()))
+            return
+
+        if method == "POST" and path == "/api/docker/resources/action":
+            payload = self.read_json()
+            if not isinstance(payload, dict):
+                error_response(self, 400, "invalid_payload", "Resource action payload must be an object.")
+                return
+            action = str(payload.get("action") or "")
+            kind = str(payload.get("kind") or "")
+            name = str(payload.get("name") or "")
+            if action in {"ignore", "adopt", "clear"}:
+                result = STORE.update_resource_decision(action, kind, name)
+            else:
+                result = DOCKER.resource_action(STORE.load(), payload)
+            HISTORY.append(f"docker-resource-{action}", result=result)
+            success(self, 200, result)
             return
 
         if method == "GET" and path == "/api/history":

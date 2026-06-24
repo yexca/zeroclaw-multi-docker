@@ -142,7 +142,11 @@
     "addFile": "Add file",
     "removeFile": "Remove file",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "adopt": "Adopt",
+    "ignore": "Ignore",
+    "migrate": "Migrate",
+    "clearDecision": "Clear decision"
   },
   "fields": {
     "id": "ID",
@@ -256,6 +260,7 @@
     "syncedToRuntime": "Local files synced to runtime volume.",
     "syncedFromRuntime": "Runtime volume synced back to local files.",
     "resetMatrixState": "Matrix E2EE state reset and device ID rotated.",
+    "resourceActionDone": "Docker resource action complete.",
     "resetMatrixRunning": "Agent container is running. Stop it before resetting Matrix state.",
     "started": "Start requested.",
     "stopped": "Stop requested.",
@@ -274,7 +279,8 @@
     "deleteTemplate": "Delete this prompt template?",
     "overwriteWorkspace": "Overwrite existing workspace prompt files?",
     "resetMatrixState": "This will delete the local Matrix encryption state and generate a new device ID for this Matrix configuration. Other agents using the same Matrix account or configuration may be affected. Continue?",
-    "deleteTemplateFile": "Remove this custom template file?"
+    "deleteTemplateFile": "Remove this custom template file?",
+    "deleteDockerResource": "Delete this Docker resource? Docker may refuse if it is still in use. This cannot be undone."
   },
   "common": {
     "loading": "Loading...",
@@ -371,6 +377,8 @@
     "orphans": "Managed orphans",
     "legacy": "Untracked ZeroClaw-named",
     "untracked": "Untracked ZeroClaw-named",
+    "adopted": "Locally adopted",
+    "ignored": "Ignored",
     "conflicts": "Needs review",
     "count": "{count} resources",
     "emptyBucket": "No resources in this group.",
@@ -386,6 +394,7 @@
     "expectedHelp": "The current manager configuration expects this resource name, and Docker labels mark it as manager-owned.",
     "conflictsHelp": "The current configuration expects this resource name, but the resource is missing manager ownership labels. This often means an older version created it, so review before modifying it.",
     "orphansHelp": "Docker labels mark this resource as manager-owned, but the current configuration no longer expects it.",
-    "untrackedHelp": "The resource name contains zeroclaw, but it is not expected by the current configuration and has no manager ownership label. It may belong to another local setup."
+    "untrackedHelp": "The resource name contains zeroclaw, but it is not expected by the current configuration and has no manager ownership label. It may belong to another local setup.",
+    "migrateTargetPrompt": "Target volume name"
   }
 }

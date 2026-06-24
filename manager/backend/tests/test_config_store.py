@@ -115,6 +115,19 @@ class ConfigStoreTest(unittest.TestCase):
         self.assertTrue(Path(result["path"]).exists())
         self.assertEqual(result["config"]["version"], 1)
 
+    def test_resource_decisions_are_persisted(self) -> None:
+        self.store.update_resource_decision("ignore", "volume", "zeroclaw-old-data")
+        self.store.update_resource_decision("adopt", "container", "zeroclaw-old-agent")
+
+        decisions = self.store.load_resource_decisions()
+
+        self.assertEqual(decisions["ignored"][0]["name"], "zeroclaw-old-data")
+        self.assertEqual(decisions["adopted"][0]["name"], "zeroclaw-old-agent")
+
+        self.store.update_resource_decision("clear", "volume", "zeroclaw-old-data")
+        decisions = self.store.load_resource_decisions()
+        self.assertEqual(decisions["ignored"], [])
+
     def test_rotate_matrix_device_id_updates_agent_override(self) -> None:
         self.store.update_full_config(
             {
@@ -347,6 +360,45 @@ class DockerControllerTest(unittest.TestCase):
                 spec,
             )
         )
+
+    def test_resource_decisions_move_rows_out_of_review_buckets(self) -> None:
+        controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
+        buckets = {
+            "expected": [],
+            "conflicts": [{"name": "expected-volume"}],
+            "legacy": [{"name": "other-zeroclaw-volume"}],
+            "orphans": [],
+        }
+
+        result = controller.apply_resource_decisions(
+            buckets,
+            "volume",
+            {
+                "adopted": [{"kind": "volume", "name": "expected-volume"}],
+                "ignored": [{"kind": "volume", "name": "other-zeroclaw-volume"}],
+            },
+        )
+
+        self.assertEqual(result["conflicts"], [])
+        self.assertEqual(result["legacy"], [])
+        self.assertEqual(result["adopted"][0]["classification"], "adopted")
+        self.assertEqual(result["ignored"][0]["classification"], "ignored")
+
+    def test_delete_refuses_expected_resource(self) -> None:
+        controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
+        controller.manager_mount_sources = lambda: {}
+        config = {
+            "docker": {"project_name": "zeroclaw-dockyard"},
+            "agents": [{"id": "agent1", "host_port": 42641}],
+        }
+        controller.list_containers_for_audit = lambda expected: []
+        controller.list_volumes_for_audit = lambda expected: []
+        controller.list_networks_for_audit = lambda expected: []
+
+        with self.assertRaises(ConfigError) as context:
+            controller.ensure_resource_delete_allowed(config, "volume", "zeroclaw-dockyard-agent-agent1-data")
+
+        self.assertEqual(context.exception.code, "resource_delete_refused")
 
     def test_build_container_spec_uses_manager_mount_sources(self) -> None:
         controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))

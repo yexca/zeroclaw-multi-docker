@@ -429,6 +429,17 @@ textarea {
   font-size: 12px;
 }
 
+.resource-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.resource-actions .button {
+  padding: 7px 9px;
+  font-size: 13px;
+}
+
 .agent-card {
   display: grid;
   gap: 12px;
