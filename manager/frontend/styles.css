@@ -1097,8 +1097,7 @@ dd {
   color: var(--color-success);
 }
 
-.notice.danger,
-.result-box {
+.notice.danger {
   border-color: var(--color-danger);
   background: var(--color-danger-bg);
   color: var(--color-danger);
@@ -1114,6 +1113,24 @@ dd {
 
 .result-box {
   margin-top: 16px;
+}
+
+.result-box.success {
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.result-box.warning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.result-box.danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .result-box p {

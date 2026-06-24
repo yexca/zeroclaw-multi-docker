@@ -1435,7 +1435,9 @@ function renderValidation() {
   if (!state.validationResult) return "";
   const errors = state.validationResult.errors || [];
   const warnings = state.validationResult.warnings || [];
-  return `<div class="result-box">
+  if (!errors.length && !warnings.length) return "";
+  const kind = errors.length ? "danger" : warnings.length ? "warning" : "success";
+  return `<div class="result-box ${kind}">
     <strong>${escapeHtml(state.validationResult.valid ? t("validation.valid") : t("validation.invalid"))}</strong>
     ${[...errors, ...warnings].map((item) => `<p>${escapeHtml(item.field)}: ${escapeHtml(item.message)}</p>`).join("")}
   </div>`;
@@ -2008,9 +2010,20 @@ async function handleAction(action) {
   }
   if (action === "agent-validate") {
     const id = itemId(selectedAgent());
-    return runAction(async () => {
+    try {
+      setBusy(true);
+      state.error = "";
+      state.notice = "";
       state.validationResult = await api(`/api/agents/${encodeURIComponent(id)}/validate`, { method: "POST", body: "{}" });
-    });
+      state.notice = state.validationResult.valid ? t("messages.validationPassed") : "";
+      state.error = state.validationResult.valid ? "" : t("messages.validationFailed");
+    } catch (error) {
+      state.error = error.message || String(error);
+    } finally {
+      state.busy = false;
+      render();
+    }
+    return;
   }
   if (action === "agent-apply-template") {
     const agent = selectedAgent();

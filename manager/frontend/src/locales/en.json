@@ -233,6 +233,8 @@
     "exported": "Export complete.",
     "templateApplied": "Template applied.",
     "aiFillGenerated": "AI generated the template draft. Review the files and click Save to persist it.",
+    "validationPassed": "Validation passed.",
+    "validationFailed": "Validation failed. Review the details below.",
     "started": "Start requested.",
     "stopped": "Stop requested.",
     "restarted": "Restart requested.",

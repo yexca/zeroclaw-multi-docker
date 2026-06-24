@@ -233,6 +233,8 @@
     "exported": "导出完成。",
     "templateApplied": "模板已应用。",
     "aiFillGenerated": "AI 已生成模板草稿。请检查文件并点击保存以持久化。",
+    "validationPassed": "校验通过。",
+    "validationFailed": "校验失败。请查看下方详情。",
     "started": "已请求启动。",
     "stopped": "已请求停止。",
     "restarted": "已请求重启。",
