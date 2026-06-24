@@ -10,7 +10,7 @@
     "language": "语言",
     "theme": "主题",
     "languages": {
-      "en": "英语",
+      "en": "English",
       "zh-CN": "简体中文"
     },
     "themes": {
@@ -138,10 +138,10 @@
     "removeFile": "移除文件",
     "confirm": "确认",
     "cancel": "取消",
-    "adopt": "接管",
-    "ignore": "忽略",
-    "migrate": "迁移",
-    "clearDecision": "清除记录"
+    "adopt": "标记为已确认",
+    "ignore": "忽略这个资源",
+    "migrate": "迁移卷数据",
+    "clearDecision": "清除本地记录"
   },
   "fields": {
     "id": "ID",
@@ -376,7 +376,7 @@
     "orphans": "不在配置中",
     "legacy": "未跟踪的 ZeroClaw 命名资源",
     "untracked": "未跟踪的 ZeroClaw 命名资源",
-    "adopted": "已在本地接管",
+    "adopted": "已确认",
     "ignored": "已忽略",
     "conflicts": "需要确认",
     "count": "{count} 个资源",
@@ -396,40 +396,41 @@
     "conflictsHelp": "当前配置会推导出这个资源名，但资源缺少管理器归属标签。这通常是旧版本创建的资源，修改前需要确认。",
     "orphansHelp": "Docker 标签表明它属于管理器，但当前配置已经不再需要这个资源。",
     "untrackedHelp": "资源名包含 zeroclaw，但当前配置不需要它，也没有管理器归属标签。它可能属于另一套本地配置。",
+    "reviewedHelp": "标记为已确认只会在 config/generated 中记录一个本地判断，不会修改 Docker 标签、重命名资源或迁移数据。",
     "migrateTargetPrompt": "目标卷名称",
     "deleteTitle": "删除 Docker 资源",
-    "deleteTypeName": "输入资源名称以确认删除",
-    "deleteWarning": {
-      "container": "删除容器会停止并移除该容器，但不会删除它挂载的卷。",
-      "volume": "删除卷可能永久移除运行数据、工作区文件、Matrix 加密状态以及尚未同步的改动。",
-      "network": "删除网络可能断开仍依赖它的容器连接。",
-      "default": "删除 Docker 资源后无法撤销。"
-    },
-    "kind": {
-      "container": "容器",
-      "volume": "卷",
-      "network": "网络"
-    },
-    "roleValue": {
-      "agent": "Agent",
-      "proactive": "Proactive sidecar",
-      "sync": "同步辅助容器",
-      "volume": "卷",
-      "network": "网络"
-    },
-    "classification": {
-      "expected": "配置中的资源",
-      "expected_absent": "配置中需要但当前不存在",
-      "expected_name_unmanaged": "名称匹配但缺少管理器标签",
-      "expected_name_unlabeled": "名称匹配但缺少管理器标签",
-      "managed_orphan": "由管理器创建但不在当前配置中",
-      "legacy_candidate": "未跟踪的 ZeroClaw 命名资源",
-      "ignored": "已在本地忽略",
-      "adopted": "已在本地接管",
-      "absent": "不存在",
-      "running": "运行中",
-      "exited": "已停止",
-      "created": "已创建"
-    }
+    "deleteTypeName": "输入资源名称以确认删除"
+  },
+  "resourceDeleteWarnings": {
+    "container": "删除容器会停止并移除该容器，但不会删除它挂载的卷。",
+    "volume": "删除卷可能永久移除运行数据、工作区文件、Matrix 加密状态以及尚未同步的改动。",
+    "network": "删除网络可能断开仍依赖它的容器连接。",
+    "default": "删除 Docker 资源后无法撤销。"
+  },
+  "resourceKinds": {
+    "container": "容器",
+    "volume": "卷",
+    "network": "网络"
+  },
+  "resourceRoles": {
+    "agent": "Agent",
+    "proactive": "Proactive sidecar",
+    "sync": "同步辅助容器",
+    "volume": "卷",
+    "network": "网络"
+  },
+  "resourceClassifications": {
+    "expected": "配置中的资源",
+    "expected_absent": "配置中需要但当前不存在",
+    "expected_name_unmanaged": "名称匹配但缺少管理器标签",
+    "expected_name_unlabeled": "名称匹配但缺少管理器标签",
+    "managed_orphan": "由管理器创建但不在当前配置中",
+    "legacy_candidate": "未跟踪的 ZeroClaw 命名资源",
+    "ignored": "已在本地忽略",
+    "adopted": "已确认",
+    "absent": "不存在",
+    "running": "运行中",
+    "exited": "已停止",
+    "created": "已创建"
   }
 }

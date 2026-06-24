@@ -11,7 +11,7 @@
     "theme": "Theme",
     "languages": {
       "en": "English",
-      "zh-CN": "Simplified Chinese"
+      "zh-CN": "简体中文"
     },
     "themes": {
       "light": "Light",
@@ -143,10 +143,10 @@
     "removeFile": "Remove file",
     "confirm": "Confirm",
     "cancel": "Cancel",
-    "adopt": "Adopt",
-    "ignore": "Ignore",
-    "migrate": "Migrate",
-    "clearDecision": "Clear decision"
+    "adopt": "Mark as reviewed",
+    "ignore": "Ignore this resource",
+    "migrate": "Migrate volume data",
+    "clearDecision": "Clear local decision"
   },
   "fields": {
     "id": "ID",
@@ -376,7 +376,7 @@
     "orphans": "Managed orphans",
     "legacy": "Untracked ZeroClaw-named",
     "untracked": "Untracked ZeroClaw-named",
-    "adopted": "Locally adopted",
+    "adopted": "Reviewed locally",
     "ignored": "Ignored",
     "conflicts": "Needs review",
     "count": "{count} resources",
@@ -396,40 +396,41 @@
     "conflictsHelp": "The current configuration expects this resource name, but the resource is missing manager ownership labels. This often means an older version created it, so review before modifying it.",
     "orphansHelp": "Docker labels mark this resource as manager-owned, but the current configuration no longer expects it.",
     "untrackedHelp": "The resource name contains zeroclaw, but it is not expected by the current configuration and has no manager ownership label. It may belong to another local setup.",
+    "reviewedHelp": "Mark reviewed only records a local decision in config/generated. It does not change Docker labels, rename resources, or migrate data.",
     "migrateTargetPrompt": "Target volume name",
     "deleteTitle": "Delete Docker resource",
-    "deleteTypeName": "Type the resource name to confirm deletion",
-    "deleteWarning": {
-      "container": "Deleting a container stops and removes that container, but it does not remove its volumes.",
-      "volume": "Deleting a volume can permanently remove runtime data, workspace files, Matrix encryption state, and unsynced changes.",
-      "network": "Deleting a network can disconnect containers that still depend on it.",
-      "default": "Deleting a Docker resource cannot be undone."
-    },
-    "kind": {
-      "container": "Container",
-      "volume": "Volume",
-      "network": "Network"
-    },
-    "roleValue": {
-      "agent": "Agent",
-      "proactive": "Proactive sidecar",
-      "sync": "Sync helper",
-      "volume": "Volume",
-      "network": "Network"
-    },
-    "classification": {
-      "expected": "Expected",
-      "expected_absent": "Expected but absent",
-      "expected_name_unmanaged": "Expected name without manager labels",
-      "expected_name_unlabeled": "Expected name without manager labels",
-      "managed_orphan": "Managed but not in current config",
-      "legacy_candidate": "Untracked ZeroClaw-named",
-      "ignored": "Ignored locally",
-      "adopted": "Locally adopted",
-      "absent": "Absent",
-      "running": "Running",
-      "exited": "Stopped",
-      "created": "Created"
-    }
+    "deleteTypeName": "Type the resource name to confirm deletion"
+  },
+  "resourceDeleteWarnings": {
+    "container": "Deleting a container stops and removes that container, but it does not remove its volumes.",
+    "volume": "Deleting a volume can permanently remove runtime data, workspace files, Matrix encryption state, and unsynced changes.",
+    "network": "Deleting a network can disconnect containers that still depend on it.",
+    "default": "Deleting a Docker resource cannot be undone."
+  },
+  "resourceKinds": {
+    "container": "Container",
+    "volume": "Volume",
+    "network": "Network"
+  },
+  "resourceRoles": {
+    "agent": "Agent",
+    "proactive": "Proactive sidecar",
+    "sync": "Sync helper",
+    "volume": "Volume",
+    "network": "Network"
+  },
+  "resourceClassifications": {
+    "expected": "Expected",
+    "expected_absent": "Expected but absent",
+    "expected_name_unmanaged": "Expected name without manager labels",
+    "expected_name_unlabeled": "Expected name without manager labels",
+    "managed_orphan": "Managed but not in current config",
+    "legacy_candidate": "Untracked ZeroClaw-named",
+    "ignored": "Ignored locally",
+    "adopted": "Reviewed locally",
+    "absent": "Absent",
+    "running": "Running",
+    "exited": "Stopped",
+    "created": "Created"
   }
 }

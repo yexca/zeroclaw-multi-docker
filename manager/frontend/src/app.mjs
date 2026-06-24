@@ -1187,10 +1187,16 @@ const ACTION_ICONS = {
   "actions.validate": "circle-check",
   "actions.advancedActions": "chevron-up",
   "actions.collapseAdvancedActions": "chevron-down",
-  "actions.resetMatrixState": "shield-alert"
+  "actions.resetMatrixState": "shield-alert",
+  "actions.adopt": "badge-check",
+  "actions.ignore": "eye-off",
+  "actions.migrate": "arrow-right-left",
+  "actions.clearDecision": "undo"
 };
 
 const ICON_PATHS = {
+  "arrow-right-left": '<path d="M8 7h13"></path><path d="m18 4 3 3-3 3"></path><path d="M16 17H3"></path><path d="m6 14-3 3 3 3"></path>',
+  "badge-check": '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.77 4 4 0 0 1 0 6.76 4 4 0 0 1-4.78 4.77 4 4 0 0 1-6.74 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"></path><path d="m9 12 2 2 4-4"></path>',
   check: '<path d="m5 12 4 4L19 6"></path>',
   "chevron-down": '<path d="m6 9 6 6 6-6"></path>',
   "chevron-up": '<path d="m18 15-6-6-6 6"></path>',
@@ -1198,6 +1204,7 @@ const ICON_PATHS = {
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path>',
   edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
+  "eye-off": '<path d="M10.7 5.1A10.9 10.9 0 0 1 12 5c7 0 10 7 10 7a13.2 13.2 0 0 1-2.2 3.3"></path><path d="M6.6 6.6C2.7 8.8 1 12 1 12s3 7 11 7a10.8 10.8 0 0 0 5.4-1.4"></path><path d="m2 2 20 20"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>',
   "file-check": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="m9 15 2 2 4-4"></path>',
   "file-text": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path>',
   play: '<path d="m6 3 14 9-14 9Z"></path>',
@@ -1209,6 +1216,7 @@ const ICON_PATHS = {
   sparkles: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"></path><path d="M5 3v4"></path><path d="M3 5h4"></path><path d="M19 17v4"></path><path d="M17 19h4"></path>',
   square: '<rect x="6" y="6" width="12" height="12" rx="2"></rect>',
   trash: '<path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path>',
+  undo: '<path d="M9 14 4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-4"></path>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5"></path><path d="M12 3v12"></path>',
   x: '<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>'
 };
@@ -1302,6 +1310,7 @@ function renderDockerResources() {
         ${renderDetail(t("resources.conflicts"), t("resources.conflictsHelp"))}
         ${renderDetail(t("resources.orphans"), t("resources.orphansHelp"))}
         ${renderDetail(t("resources.untracked"), t("resources.untrackedHelp"))}
+        ${renderDetail(t("resources.adopted"), t("resources.reviewedHelp"))}
       </dl>
     </details>
     <div class="resource-summary">
@@ -1392,15 +1401,15 @@ function renderResourceRow(row, kind, bucket) {
 }
 
 function resourceKindLabel(kind) {
-  return t(`resources.kind.${kind}`) || kind;
+  return t(`resourceKinds.${kind}`) || kind;
 }
 
 function resourceRoleLabel(role) {
-  return role ? t(`resources.roleValue.${role}`) || role : "";
+  return role ? t(`resourceRoles.${role}`) || role : "";
 }
 
 function resourceClassificationLabel(classification) {
-  return classification ? t(`resources.classification.${classification}`) || classification : "";
+  return classification ? t(`resourceClassifications.${classification}`) || classification : "";
 }
 
 function renderResourceActions(row, kind, bucket) {
@@ -1443,7 +1452,7 @@ function renderResourceDeleteDialog() {
         <header class="modal-header">
           <div>
             <h3 id="resource-delete-title">${escapeHtml(t("resources.deleteTitle"))}</h3>
-            <p>${escapeHtml(t(`resources.deleteWarning.${pending.kind}`) || t("resources.deleteWarning.default"))}</p>
+            <p>${escapeHtml(t(`resourceDeleteWarnings.${pending.kind}`) || t("resourceDeleteWarnings.default"))}</p>
           </div>
           <button type="button" class="button icon-button" data-action="resource-delete-cancel" aria-label="${escapeHtml(t("actions.cancel"))}">${iconSvg("x")}</button>
         </header>
@@ -2873,6 +2882,8 @@ async function main() {
   }).catch(() => {});
   if (state.selectedTab === "dashboard") {
     refreshDashboardInBackground();
+  } else if (state.selectedTab === "resources") {
+    refreshDockerResourcesInBackground();
   } else {
     window.setTimeout(() => refreshDashboardInBackground(), 250);
   }
