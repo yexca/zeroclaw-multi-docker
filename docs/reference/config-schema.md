@@ -78,6 +78,10 @@ not injected into ordinary channel prompts. Custom files are not referenced by
 ZeroClaw automatically; add an explicit reference from an official file when
 the model should use a custom workspace file.
 
+The WebUI AI fill action is an editing helper for this same `files` mapping. It
+does not add configuration fields and generated drafts are not persisted until
+the prompt template is saved.
+
 ## LLM Profile Fields
 
 `profiles.llm` entries describe reusable ZeroClaw model provider profiles. A

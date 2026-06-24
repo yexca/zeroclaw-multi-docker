@@ -94,7 +94,14 @@
     "heartbeatFileHelp": "This file is read by the heartbeat worker from the workspace root and is not injected into normal channel prompts.",
     "optionalServiceFileHelp": "This project convention is for the optional proactive service; official ZeroClaw will not read it automatically.",
     "customFileHelp": "This file is written to the workspace root only; reference it from an official file to make it effective.",
-    "addFilePrompt": "New workspace file name"
+    "addFilePrompt": "New workspace file name",
+    "aiFillTitle": "AI fill prompt template",
+    "aiFillSubtitle": "Generate all files in this template using one LLM profile. Review the result, then save manually.",
+    "aiInstruction": "AI instruction prompt",
+    "aiDescription": "Agent description",
+    "aiDescriptionPlaceholder": "Describe who this agent is, what it does, preferences, relationship to the user, tone, boundaries, and useful context.",
+    "aiGenerateFiles": "Files to generate",
+    "aiUseReferences": "Send selected current files to AI as reference context"
   },
   "export": {
     "title": "Config Export",
@@ -118,6 +125,8 @@
     "refreshStatus": "Refresh status",
     "applyTemplate": "Apply template",
     "export": "Export",
+    "aiFill": "AI fill",
+    "generate": "Generate",
     "addFile": "Add file",
     "removeFile": "Remove file",
     "confirm": "Confirm",
@@ -223,6 +232,7 @@
     "deleted": "Deleted.",
     "exported": "Export complete.",
     "templateApplied": "Template applied.",
+    "aiFillGenerated": "AI generated the template draft. Review the files and click Save to persist it.",
     "started": "Start requested.",
     "stopped": "Stop requested.",
     "restarted": "Restart requested.",

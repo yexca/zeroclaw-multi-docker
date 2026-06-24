@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 
 from manager.backend.agent_renderer import AgentRenderer, REQUIRED_ENV_KEYS
+from manager.backend.ai_fill import PromptTemplateAiFiller
 from manager.backend.config_store import ConfigError, ConfigStore, redact
 from manager.backend.config_validator import ConfigValidator
 from manager.backend.docker_controller import (
@@ -435,6 +436,31 @@ class ApiRoutingTest(unittest.TestCase):
         self.assertEqual(handler.parse_limit({"limit": ["0"]}, default=50, maximum=100), 1)
         self.assertEqual(handler.parse_limit({"limit": ["999"]}, default=50, maximum=100), 100)
         self.assertEqual(handler.parse_limit({"limit": ["bad"]}, default=50, maximum=100), 50)
+
+
+class PromptTemplateAiFillerTest(unittest.TestCase):
+    def test_parse_generated_files_accepts_requested_json(self) -> None:
+        filler = PromptTemplateAiFiller()
+
+        result = filler._parse_generated_files('{"AGENTS.md": "# A", "SOUL.md": "# S", "OTHER.md": "skip"}', ["AGENTS.md", "SOUL.md"])
+
+        self.assertEqual(result, {"AGENTS.md": "# A", "SOUL.md": "# S"})
+
+    def test_parse_generated_files_rejects_missing_requested_file(self) -> None:
+        filler = PromptTemplateAiFiller()
+
+        with self.assertRaises(ConfigError) as context:
+            filler._parse_generated_files('{"AGENTS.md": "# A"}', ["AGENTS.md", "SOUL.md"])
+
+        self.assertEqual(context.exception.code, "missing_ai_files")
+
+    def test_safe_file_validation_rejects_paths(self) -> None:
+        filler = PromptTemplateAiFiller()
+
+        with self.assertRaises(ConfigError) as context:
+            filler._safe_file_names(["../secret"], "files")
+
+        self.assertEqual(context.exception.code, "invalid_files")
 
 
 class AgentRendererTest(unittest.TestCase):

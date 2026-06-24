@@ -38,8 +38,17 @@ Errors use:
 
 - `GET /api/prompt-templates`
 - `POST /api/prompt-templates`
+- `POST /api/prompt-templates/ai-fill`
 - `PUT /api/prompt-templates/{id}`
 - `DELETE /api/prompt-templates/{id}`
+
+`POST /api/prompt-templates/ai-fill` uses a configured LLM profile to generate
+Markdown content for prompt template files. The request body includes
+`llm_profile`, `instruction`, `description`, `files`, optional
+`reference_files`, and optional `current_files`. The response returns
+`files`, a mapping of generated file names to Markdown strings. The endpoint
+does not save the prompt template; the WebUI applies the result to the draft and
+operators save it explicitly.
 
 ## Agents
 

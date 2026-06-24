@@ -9,6 +9,22 @@ const DEFAULT_ZEROCLAW_IMAGE = "ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian";
 const DEFAULT_AGENT_HOST_PORT = 42641;
 const DEFAULT_PROACTIVE_PROMPT =
   'You are being invoked by the proactive sidecar, not by the user. Review PROACTIVE.md, memory, and current context. If there is a concrete, timely reason to contact the user, send one short Matrix message with send_message_to_peer using the configured channel and peer target. If there is no useful reason, respond exactly with "skip".';
+const DEFAULT_AI_FILL_INSTRUCTION = `You are helping create ZeroClaw workspace prompt template files.
+
+Generate concise, practical Markdown for the selected files.
+Preserve ZeroClaw file roles:
+- AGENTS.md: session startup rules and file-reading behavior
+- SOUL.md: agent personality, voice, boundaries
+- TOOLS.md: local tools, skills, operating conventions
+- IDENTITY.md: stable identity facts
+- USER.md: user profile, preferences, relationship context
+- MEMORY.md: long-term memory seeds
+- HEARTBEAT.md: periodic heartbeat tasks; comments are allowed
+- PROACTIVE.md: optional proactive sidecar notes and outbound judgment
+
+Do not include secrets.
+Keep placeholders such as {agent}, {user}, {tz}, and {comm_style} when useful.
+Return only a JSON object mapping file names to Markdown strings.`;
 const DEFAULT_PROACTIVE = {
   enabled: true,
   random_min_minutes: 120,
@@ -384,7 +400,14 @@ const state = {
   error: "",
   exportResult: null,
   validationResult: null,
-  dashboardLoading: false
+  dashboardLoading: false,
+  aiFillOpen: false,
+  aiFillReferenceEnabled: false,
+  aiFillReferenceFiles: [],
+  aiFillProfile: "",
+  aiFillInstruction: DEFAULT_AI_FILL_INSTRUCTION,
+  aiFillDescription: "",
+  aiFillScrollTop: 0
 };
 
 let i18n;
@@ -578,7 +601,8 @@ function fieldDisplayName(name) {
     server_name: t("fields.serverName"),
     transport: t("fields.transport"),
     url: t("fields.url"),
-    template_file: t("fields.templateFile")
+    template_file: t("fields.templateFile"),
+    description: t("fields.description")
   };
   return labels[name] || name;
 }
@@ -810,6 +834,16 @@ function templateFileNames(template) {
   return names;
 }
 
+function aiFillTargetFiles(template) {
+  return templateFileNames(template);
+}
+
+function aiFillReferenceFiles(template) {
+  const names = templateFileNames(template);
+  if (!state.aiFillReferenceFiles.length) return PROMPT_SYSTEM_FILES.filter((file) => names.includes(file));
+  return state.aiFillReferenceFiles.filter((file) => names.includes(file));
+}
+
 function selectedTemplateFile(template) {
   const names = templateFileNames(template);
   return names.includes(state.selectedTemplateFile) ? state.selectedTemplateFile : names[0] || TEMPLATE_FILES[0];
@@ -903,6 +937,70 @@ function updateTemplateDraftFromForm() {
   template.files = { ...templateFiles(template), [activeFile]: String(data.get(`file:${activeFile}`) || "") };
 }
 
+function syncAiFillDraftFromForm() {
+  const form = document.querySelector('[data-form="template-ai-fill"]');
+  if (!form) return;
+  const data = readForm(form);
+  state.aiFillProfile = String(data.get("llm_profile") || "");
+  state.aiFillInstruction = String(data.get("instruction") || DEFAULT_AI_FILL_INSTRUCTION);
+  state.aiFillDescription = String(data.get("description") || "");
+  state.aiFillReferenceEnabled = data.get("use_references") === "on";
+  state.aiFillReferenceFiles = data.getAll("reference_file").map((value) => String(value));
+}
+
+function renderAiFillPreservingScroll() {
+  state.aiFillScrollTop = document.querySelector(".ai-fill-dialog")?.scrollTop || 0;
+  render();
+  requestAnimationFrame(() => {
+    const dialog = document.querySelector(".ai-fill-dialog");
+    if (dialog) dialog.scrollTop = state.aiFillScrollTop;
+  });
+}
+
+function openAiFillDialog() {
+  updateTemplateDraftFromForm();
+  const llmProfiles = collection("llm");
+  state.aiFillOpen = true;
+  state.aiFillProfile = state.aiFillProfile || (llmProfiles[0] ? itemId(llmProfiles[0]) : "");
+  state.aiFillInstruction = state.aiFillInstruction || DEFAULT_AI_FILL_INSTRUCTION;
+  state.aiFillReferenceEnabled = false;
+  state.aiFillReferenceFiles = [];
+  render();
+}
+
+async function runAiFill() {
+  const template = selectedTemplate();
+  const form = document.querySelector('[data-form="template-ai-fill"]');
+  if (!template || !form) return;
+  syncAiFillDraftFromForm();
+  const targetFiles = aiFillTargetFiles(template);
+  const references = state.aiFillReferenceEnabled ? aiFillReferenceFiles(template) : [];
+  const payload = {
+    llm_profile: requireString(readForm(form), "llm_profile"),
+    instruction: state.aiFillInstruction,
+    description: requireString(readForm(form), "description"),
+    files: targetFiles,
+    reference_files: references,
+    current_files: Object.fromEntries(references.map((file) => [file, templateFiles(template)[file] || ""]))
+  };
+  try {
+    setBusy(true);
+    state.error = "";
+    state.notice = "";
+    const result = await api("/api/prompt-templates/ai-fill", { method: "POST", body: JSON.stringify(payload) });
+    updateTemplateDraftFromForm();
+    template.files = { ...templateFiles(template), ...(result.files || {}) };
+    state.selectedTemplateFile = targetFiles[0] || state.selectedTemplateFile;
+    state.aiFillOpen = false;
+    state.notice = t("messages.aiFillGenerated");
+  } catch (error) {
+    state.error = error.message || String(error);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 function llmFamily(item) {
   return item.provider_family || item.family || item.kind || "openai";
 }
@@ -978,7 +1076,8 @@ function selectField(labelKey, name, optionsHtml, attrs = "", helpKey = "") {
 }
 
 const ACTION_ICONS = {
-  "actions.applyTemplate": "sparkles",
+  "actions.applyTemplate": "file-check",
+  "actions.aiFill": "sparkles",
   "actions.create": "plus",
   "actions.delete": "trash",
   "actions.downloadLogs": "download",
@@ -992,14 +1091,16 @@ const ACTION_ICONS = {
   "actions.save": "save",
   "actions.start": "play",
   "actions.stop": "square",
-  "actions.validate": "check"
+  "actions.validate": "circle-check"
 };
 
 const ICON_PATHS = {
   check: '<path d="m5 12 4 4L19 6"></path>',
+  "circle-check": '<circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path>',
   edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
+  "file-check": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="m9 15 2 2 4-4"></path>',
   "file-text": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path>',
   play: '<path d="m6 3 14 9-14 9Z"></path>',
   plus: '<path d="M12 5v14"></path><path d="M5 12h14"></path>',
@@ -1041,6 +1142,7 @@ function render() {
       </nav>
       <section class="content-panel">${renderSelectedTab()}</section>
     </div>
+    ${renderAiFillDialog()}
   `;
 }
 
@@ -1565,7 +1667,76 @@ function renderTemplateForm(template) {
         </div>
       </div>
     </div>
-    <div class="button-row form-actions">${actionButton("template-save", "actions.save", "primary")}</div>
+    <div class="button-row form-actions">
+      ${actionButton("template-ai-fill-open", "actions.aiFill", "secondary")}
+      ${actionButton("template-save", "actions.save", "primary")}
+    </div>
+  `;
+}
+
+function renderAiFillDialog() {
+  if (!state.aiFillOpen) return "";
+  const template = selectedTemplate();
+  if (!template) return "";
+  const targetFiles = aiFillTargetFiles(template);
+  const referenceFiles = aiFillReferenceFiles(template);
+  const llmProfiles = collection("llm");
+  const selectedProfile = llmProfiles.some((profile) => itemId(profile) === state.aiFillProfile)
+    ? state.aiFillProfile
+    : llmProfiles[0]
+      ? itemId(llmProfiles[0])
+      : "";
+  return `
+    <div class="modal-backdrop" role="presentation">
+      <section class="modal-panel ai-fill-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-fill-title">
+        <header class="modal-header">
+          <div>
+            <h3 id="ai-fill-title">${escapeHtml(t("prompts.aiFillTitle"))}</h3>
+            <p>${escapeHtml(t("prompts.aiFillSubtitle"))}</p>
+          </div>
+          ${actionButton("template-ai-fill-close", "actions.cancel", "secondary")}
+        </header>
+        <form class="form-grid" data-form="template-ai-fill">
+          ${selectField("fields.llmProfile", "llm_profile", optionList(llmProfiles, selectedProfile), "required")}
+          ${textareaField("prompts.aiInstruction", "instruction", state.aiFillInstruction, 'class="ai-fill-instruction"')}
+          ${textareaField(
+            "prompts.aiDescription",
+            "description",
+            state.aiFillDescription,
+            'class="ai-fill-description" required placeholder="' + escapeHtml(t("prompts.aiDescriptionPlaceholder")) + '"'
+          )}
+          <section class="field field-wide ai-file-section">
+            <span>${escapeHtml(t("prompts.aiGenerateFiles"))}</span>
+            <div class="file-chip-grid">
+              ${targetFiles.map((file) => `<span class="file-chip locked">${escapeHtml(file)}</span>`).join("")}
+            </div>
+          </section>
+          <section class="field field-wide ai-file-section">
+            <label class="check-field inline-check">
+              <input type="checkbox" name="use_references" data-ai-reference-toggle ${state.aiFillReferenceEnabled ? "checked" : ""} />
+              <span>${escapeHtml(t("prompts.aiUseReferences"))}</span>
+            </label>
+            ${
+              state.aiFillReferenceEnabled
+                ? `<div class="file-chip-grid selectable">
+                    ${targetFiles
+                      .map(
+                        (file) => `<label class="file-chip check-chip"><input type="checkbox" name="reference_file" value="${escapeHtml(file)}" ${
+                          referenceFiles.includes(file) ? "checked" : ""
+                        } /><span>${escapeHtml(file)}</span></label>`
+                      )
+                      .join("")}
+                  </div>`
+                : ""
+            }
+          </section>
+        </form>
+        <footer class="button-row modal-actions">
+          ${actionButton("template-ai-fill-close", "actions.cancel", "secondary")}
+          ${actionButton("template-ai-fill-run", "actions.generate", "primary", !llmProfiles.length)}
+        </footer>
+      </section>
+    </div>
   `;
 }
 
@@ -1960,6 +2131,20 @@ async function handleAction(action) {
       state.selectedTemplateId = itemId(template);
     }, "messages.saved");
   }
+  if (action === "template-ai-fill-open") return openAiFillDialog();
+  if (action === "template-ai-fill-close") {
+    state.aiFillOpen = false;
+    render();
+    return;
+  }
+  if (action === "template-ai-fill-run") {
+    try {
+      return await runAiFill();
+    } catch (error) {
+      if (error instanceof FormValidationError) return alertValidation(error);
+      throw error;
+    }
+  }
   if (action === "template-delete-current") return deleteTemplate(state.selectedTemplateId);
   if (action === "config-export") {
     return runAction(async () => {
@@ -2112,6 +2297,13 @@ function bindEvents() {
     }
     if (event.target.matches("[data-llm-provider]")) {
       applyLlmPresetToForm(event.target.form, event.target.value);
+    }
+    if (event.target.matches("[data-ai-reference-toggle]")) {
+      syncAiFillDraftFromForm();
+      renderAiFillPreservingScroll();
+    }
+    if (event.target.matches('[name="reference_file"]')) {
+      syncAiFillDraftFromForm();
     }
   });
 }

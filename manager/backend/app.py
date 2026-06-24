@@ -12,10 +12,12 @@ from urllib.parse import parse_qs, urlparse
 
 try:
     from config_store import ConfigError, ConfigStore, redact, to_json
+    from ai_fill import PromptTemplateAiFiller
     from docker_controller import DockerApiError, build_controller_from_env
     from observability import agent_identifier, enrich_status, history_from_env, redact_lines, redact_text, utc_now
 except ModuleNotFoundError:  # pragma: no cover - package import path for tests
     from .config_store import ConfigError, ConfigStore, redact, to_json
+    from .ai_fill import PromptTemplateAiFiller
     from .docker_controller import DockerApiError, build_controller_from_env
     from .observability import agent_identifier, enrich_status, history_from_env, redact_lines, redact_text, utc_now
 
@@ -39,6 +41,7 @@ def build_store() -> ConfigStore:
 STORE = build_store()
 DOCKER = build_controller_from_env(REPO_ROOT)
 HISTORY = history_from_env(STORE.generated_dir)
+AI_FILLER = PromptTemplateAiFiller()
 
 
 def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -186,6 +189,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
             agent_id = str(payload.get("agent")) if isinstance(payload, dict) and payload.get("agent") else ""
             HISTORY.append("export", agent_id=agent_id, result=result)
             success(self, 200, result)
+            return
+
+        if path == "/api/prompt-templates/ai-fill" and method == "POST":
+            success(self, 200, AI_FILLER.fill(STORE.load(), self.read_json()))
             return
 
         if len(segments) >= 3 and segments[:2] == ["api", "profiles"]:

@@ -878,6 +878,104 @@ dd {
   outline-offset: -2px;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: rgb(0 0 0 / 44%);
+  padding: 24px;
+}
+
+.modal-panel {
+  width: min(920px, 100%);
+  max-height: min(860px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+  padding: 16px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--color-border-soft);
+  padding-bottom: 12px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+}
+
+.modal-header p {
+  margin: 4px 0 0;
+  color: var(--color-subtle);
+}
+
+.ai-fill-dialog textarea {
+  min-height: 130px;
+}
+
+.ai-fill-dialog .ai-fill-instruction {
+  min-height: 210px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.ai-file-section {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-file-section > span {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.file-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid var(--color-control-border);
+  border-radius: 999px;
+  background: var(--color-control-bg);
+  color: var(--color-text);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.file-chip.locked {
+  color: var(--color-muted);
+}
+
+.check-chip input {
+  width: 15px;
+  height: 15px;
+}
+
+.modal-actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border-soft);
+  padding-top: 12px;
+}
+
 .advanced-panel {
   margin-top: 16px;
   border-top: 1px solid var(--color-border-soft);

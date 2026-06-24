@@ -57,6 +57,13 @@ Custom files such as `RHYTHM.md` can be saved and applied to a workspace, but
 ZeroClaw does not automatically read them. To make custom files effective,
 reference them from an official file such as `AGENTS.md` or `USER.md`.
 
+The AI fill button can draft every file in the selected prompt template from an
+LLM Profile. The dialog lets operators choose the model profile, edit the
+generation instruction, describe who the agent is, and optionally send selected
+current template files as reference context. Generated content is applied only
+to the browser-side template draft; review the file tabs and click Save to
+persist it.
+
 ## LLM Profiles
 
 The LLM Profiles view edits reusable model provider profiles under

@@ -94,7 +94,14 @@
     "heartbeatFileHelp": "这个文件由 heartbeat worker 从工作区根目录读取，不会注入普通频道提示词。",
     "optionalServiceFileHelp": "这是本项目给可选 proactive 服务使用的约定文件；官方 ZeroClaw 不会自动读取它。",
     "customFileHelp": "这个文件只会写入工作区根目录；需要生效时请从官方文件中引用它。",
-    "addFilePrompt": "新的工作区文件名"
+    "addFilePrompt": "新的工作区文件名",
+    "aiFillTitle": "AI 填写提示词模板",
+    "aiFillSubtitle": "使用一个 LLM 配置生成此模板中的全部文件。请检查结果，然后手动保存。",
+    "aiInstruction": "AI 指令提示词",
+    "aiDescription": "智能体描述",
+    "aiDescriptionPlaceholder": "描述这个 agent 是谁、做什么、偏好、和用户的关系、语气、边界以及有用上下文。",
+    "aiGenerateFiles": "要生成的文件",
+    "aiUseReferences": "将选中的当前文件发送给 AI 作为参考上下文"
   },
   "export": {
     "title": "配置导出",
@@ -118,6 +125,8 @@
     "refreshStatus": "刷新状态",
     "applyTemplate": "应用模板",
     "export": "导出",
+    "aiFill": "AI 填写",
+    "generate": "生成",
     "addFile": "添加文件",
     "removeFile": "移除文件",
     "confirm": "确认",
@@ -223,6 +232,7 @@
     "deleted": "已删除。",
     "exported": "导出完成。",
     "templateApplied": "模板已应用。",
+    "aiFillGenerated": "AI 已生成模板草稿。请检查文件并点击保存以持久化。",
     "started": "已请求启动。",
     "stopped": "已请求停止。",
     "restarted": "已请求重启。",
