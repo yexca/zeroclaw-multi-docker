@@ -311,9 +311,6 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if method == "GET" and action == "env":
                 success(self, 200, STORE.render_agent(identifier, formats=["env"]))
                 return
-            if method == "GET" and action == "compose":
-                success(self, 200, STORE.render_agent(identifier, formats=["compose"]))
-                return
             if method == "GET" and action in {"config-preview", "zeroclaw-config-preview"}:
                 success(self, 200, STORE.render_agent(identifier, formats=["zeroclaw_config_preview"]))
                 return

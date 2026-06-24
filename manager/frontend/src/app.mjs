@@ -741,6 +741,15 @@ async function refreshDashboard() {
   }
 }
 
+function removeAgentLocalState(agentId) {
+  state.config.agents = collection("agents").filter((agent) => itemId(agent) !== agentId);
+  delete state.agentStatuses[agentId];
+  delete state.agentLogs[agentId];
+  if (state.dashboard?.agents) {
+    state.dashboard.agents = state.dashboard.agents.filter((row) => itemId(row.agent) !== agentId);
+  }
+}
+
 async function refreshDashboardInBackground() {
   state.dashboardRequested = true;
   const visible = state.selectedTab === "dashboard";
@@ -1808,7 +1817,7 @@ function renderExport() {
 function buildGeneratedPreview() {
   const agents = collection("agents");
   return {
-    compose_services: agents.map((agent) => itemId(agent)),
+    agent_ids: agents.map((agent) => itemId(agent)),
     env_ports: Object.fromEntries(agents.map((agent) => [itemId(agent), agent.host_port || ""])),
     export_path: state.exportResult?.path || ""
   };
@@ -2264,14 +2273,16 @@ async function controlAgent(agentId, operation) {
 async function deleteAgent(agentId) {
   if (!agentId || !(await confirmDanger("confirm.deleteAgent"))) return;
   if (selectedAgent()?._draft === true) {
-    state.config.agents = state.config.agents.filter((agent) => itemId(agent) !== agentId);
+    removeAgentLocalState(agentId);
     state.selectedAgentId = "";
     render();
     return;
   }
   return runAction(async () => {
     await api(`/api/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
+    removeAgentLocalState(agentId);
     state.selectedAgentId = "";
+    if (state.selectedTab === "dashboard") await refreshDashboard();
   }, "messages.deleted");
 }
 

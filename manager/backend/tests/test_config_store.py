@@ -51,7 +51,7 @@ class ConfigStoreTest(unittest.TestCase):
                         "matrix": [{"id": "matrix-main", "homeserver": "https://matrix.example.com"}],
                         "mcp": [{"id": "gateway", "enabled": True}],
                     },
-                    "prompt_templates": [{"id": "default", "files": ["AGENTS.md"]}],
+                    "prompt_templates": [{"id": "default", "files": {"AGENTS.md": ""}}],
                     "agents": [{"id": "agent1", "enabled": True, "llm_profile": "deepseek-text"}],
                 }
             ),
@@ -558,7 +558,7 @@ class AgentRendererTest(unittest.TestCase):
         self.assertEqual((workspace / "RHYTHM.md").read_text(encoding="utf-8"), "custom rhythm")
         self.assertFalse((workspace.parent / "escape.md").exists())
 
-    def test_export_agent_returns_env_compose_and_preview(self) -> None:
+    def test_export_agent_returns_env_and_preview(self) -> None:
         self.config["profiles"]["vision"] = [
             {
                 "id": "vision-openai",
@@ -577,7 +577,6 @@ class AgentRendererTest(unittest.TestCase):
         exported = self.renderer.export_agent(self.config, self.agent)
 
         self.assertIn("env", exported["formats"])
-        self.assertIn("compose", exported["formats"])
         self.assertIn("zeroclaw_config_preview", exported["formats"])
         self.assertIn("schema_version = 3", exported["formats"]["zeroclaw_config_preview"])
         self.assertEqual(exported["formats"]["env"]["VISION_PROVIDER_FAMILY"], "openai")

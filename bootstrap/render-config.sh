@@ -88,10 +88,6 @@ first_nonempty() {
 }
 
 matrix_stream_mode() {
-  if [ "$(toml_bool "${MATRIX_MULTI_MESSAGE:-false}")" = "true" ]; then
-    printf 'multi_message'
-    return
-  fi
   printf '%s' "${MATRIX_STREAM_MODE:-multi_message}"
 }
 
@@ -119,10 +115,10 @@ validate_unsigned_int() {
 
 MODEL_PROVIDER_FAMILY=$(first_nonempty "${MODEL_PROVIDER_FAMILY:-}" "deepseek")
 MODEL_PROVIDER_ALIAS=$(first_nonempty "${MODEL_PROVIDER_ALIAS:-}" "text")
-MODEL_PROVIDER_MODEL=$(first_nonempty "${MODEL_PROVIDER_MODEL:-}" "${DEEPSEEK_MODEL:-}" "deepseek-chat")
-MODEL_PROVIDER_BASE_URL=$(first_nonempty "${MODEL_PROVIDER_BASE_URL:-}" "${DEEPSEEK_BASE_URL:-}")
-MODEL_PROVIDER_API_KEY=$(first_nonempty "${MODEL_PROVIDER_API_KEY:-}" "${ZEROCLAW_providers__models__deepseek__text__api_key:-}" "${DEEPSEEK_API_KEY:-}")
-MODEL_PROVIDER_WIRE_API=$(first_nonempty "${MODEL_PROVIDER_WIRE_API:-}" "${DEEPSEEK_WIRE_API:-}")
+MODEL_PROVIDER_MODEL=$(first_nonempty "${MODEL_PROVIDER_MODEL:-}" "deepseek-chat")
+MODEL_PROVIDER_BASE_URL=$(first_nonempty "${MODEL_PROVIDER_BASE_URL:-}")
+MODEL_PROVIDER_API_KEY=$(first_nonempty "${MODEL_PROVIDER_API_KEY:-}")
+MODEL_PROVIDER_WIRE_API=$(first_nonempty "${MODEL_PROVIDER_WIRE_API:-}")
 MODEL_PROVIDER_TIMEOUT_SECS=$(first_nonempty "${MODEL_PROVIDER_TIMEOUT_SECS:-}" "120")
 MODEL_PROVIDER_KIND=$(first_nonempty "${MODEL_PROVIDER_KIND:-}" "")
 MODEL_PROVIDER_TEMPERATURE=$(first_nonempty "${MODEL_PROVIDER_TEMPERATURE:-}" "")
@@ -340,7 +336,7 @@ approval_timeout_secs = ${MATRIX_APPROVAL_TIMEOUT_SECS:-3600}
 excluded_tools = $(toml_array_csv_allow_all "${MATRIX_EXCLUDED_TOOLS:-}")
 reply_min_interval_secs = ${MATRIX_REPLY_MIN_INTERVAL_SECS:-0}
 reply_queue_depth_max = ${MATRIX_REPLY_QUEUE_DEPTH_MAX:-0}
-recovery_key = "$(toml_escape "$(first_nonempty "${MATRIX_RECOVERY_KEY:-}" "${MATRIX_RECOVER_KEY:-}")")"
+recovery_key = "$(toml_escape "${MATRIX_RECOVERY_KEY:-}")"
 
 [agents.main]
 enabled = true
@@ -359,7 +355,7 @@ backend = "sqlite"
 [peer_groups.matrix_home]
 channel = "matrix.home"
 agents = ["main"]
-external_peers = $(toml_array_csv_peer_usernames "$(first_nonempty "${MATRIX_EXTERNAL_PEERS:-}" "${MATRIX_PEERS:-}")")
+external_peers = $(toml_array_csv_peer_usernames "${MATRIX_EXTERNAL_PEERS:-}")
 
 [risk_profiles.root]
 level = "full"

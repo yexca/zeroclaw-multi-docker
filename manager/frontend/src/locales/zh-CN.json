@@ -109,7 +109,7 @@
     "subtitle": "查看主配置、解析后配置和生成输出预览。",
     "primary": "主配置",
     "resolved": "解析后配置",
-    "generated": "生成的 compose/env 预览"
+    "generated": "生成的运行时预览"
   },
   "actions": {
     "create": "创建",

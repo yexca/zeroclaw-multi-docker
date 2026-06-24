@@ -83,7 +83,7 @@ class AgentRenderer:
     def resolve_agent(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
         agent_identifier = item_id(agent)
         if not agent_identifier:
-            raise ConfigError("invalid_agent", "Agent requires an id or name.")
+            raise ConfigError("invalid_agent", "Agent requires an id.")
         resolved = copy.deepcopy(agent)
         resolved.setdefault("id", agent_identifier)
         resolved.setdefault("name", str(agent.get("name") or agent_identifier))
@@ -99,8 +99,6 @@ class AgentRenderer:
         resolved["vision"] = deep_merge(vision, agent.get("vision") if isinstance(agent.get("vision"), dict) else {})
         resolved["matrix"] = deep_merge(deep_merge(matrix_defaults, matrix), agent.get("matrix") if isinstance(agent.get("matrix"), dict) else {})
         resolved["mcp"] = deep_merge(mcp, agent.get("mcp") if isinstance(agent.get("mcp"), dict) else {})
-        if "prompt_template" not in resolved and agent.get("template"):
-            resolved["prompt_template"] = agent["template"]
         return resolved
 
     def render_env(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, str]:
@@ -157,16 +155,13 @@ class AgentRenderer:
             "MATRIX_USER_ID": env_value(matrix.get("user_id") or resolved.get("matrix_user_id") or ""),
             "MATRIX_DEVICE_ID": env_value(matrix.get("device_id") or resolved.get("matrix_device_id") or ""),
             "MATRIX_RECOVERY_KEY": env_value(matrix.get("recovery_key") or ""),
-            "MATRIX_RECOVER_KEY": env_value(matrix.get("recover_key") or matrix.get("recovery_key") or ""),
             "MATRIX_EXTERNAL_PEERS": join_value(matrix.get("external_peers")),
-            "MATRIX_PEERS": join_value(matrix.get("peers") or matrix.get("external_peers")),
             "MATRIX_ALLOWED_ROOMS": join_value(matrix.get("allowed_rooms")),
             "MATRIX_MENTION_ONLY": env_value(matrix.get("mention_only", False)),
             "MATRIX_INTERRUPT_ON_NEW_MESSAGE": env_value(matrix.get("interrupt_on_new_message", True)),
             "MATRIX_REPLY_IN_THREAD": env_value(matrix.get("reply_in_thread", False)),
             "MATRIX_ACK_REACTIONS": env_value(matrix.get("ack_reactions", True)),
             "MATRIX_STREAM_MODE": env_value(matrix.get("stream_mode") or "multi_message"),
-            "MATRIX_MULTI_MESSAGE": env_value(matrix.get("multi_message", False)),
             "MATRIX_MULTI_MESSAGE_DELAY_MS": env_value(matrix.get("multi_message_delay_ms") or 800),
             "MATRIX_DRAFT_UPDATE_INTERVAL_MS": env_value(matrix.get("draft_update_interval_ms") or 1500),
             "MATRIX_APPROVAL_TIMEOUT_SECS": env_value(matrix.get("approval_timeout_secs") or 3600),
@@ -272,39 +267,14 @@ class AgentRenderer:
         resolved = self.resolve_agent(config, agent)
         raw_env = self.render_env(config, resolved)
         env = raw_env if include_secrets else redact_env(raw_env)
-        formats = formats or ["env", "compose", "zeroclaw_config_preview"]
+        formats = formats or ["env", "zeroclaw_config_preview"]
         result: dict[str, Any] = {"agent": resolved if include_secrets else redact_config(resolved), "formats": {}}
         if "env" in formats:
             result["formats"]["env"] = env
             result["formats"]["env_file"] = render_env_file(env)
-        if "compose" in formats:
-            result["formats"]["compose"] = self.render_compose(config, resolved, env)
         if "zeroclaw_config_preview" in formats or "toml" in formats:
             result["formats"]["zeroclaw_config_preview"] = render_config_toml_preview(env)
         return result
-
-    def render_compose(self, config: dict[str, Any], agent: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
-        safe_name = safe_name_part(str(agent.get("name") or agent.get("id")))
-        image = agent.get("image") or config.get("defaults", {}).get("zeroclaw_image") or DEFAULT_ZEROCLAW_IMAGE
-        docker_config = config.get("docker") if isinstance(config.get("docker"), dict) else {}
-        network = docker_config.get("runtime_network") or f"{docker_config.get('project_name', 'zeroclaw-matrix-multi')}_default"
-        return {
-            "services": {
-                safe_name: {
-                    "image": image,
-                    "container_name": f"zeroclaw-matrix-{safe_name}",
-                    "user": "0:0",
-                    "restart": "unless-stopped",
-                    "working_dir": "/zeroclaw-data/workspace",
-                    "entrypoint": ["/bin/sh", "/bootstrap/render-config.sh"],
-                    "environment": env,
-                    "volumes": ["./bootstrap:/bootstrap:ro", f"./instances/{safe_name}:/zeroclaw-data"],
-                    "ports": [f"127.0.0.1:{agent.get('host_port')}:42617"],
-                    "extra_hosts": ["host.docker.internal:host-gateway", f"matrix-host:{env.get('MATRIX_HOST_IP', '127.0.0.1')}"],
-                    "networks": [network],
-                }
-            }
-        }
 
     def workspace_dir(self, config: dict[str, Any], agent: dict[str, Any]) -> Path:
         paths = config.get("paths") if isinstance(config.get("paths"), dict) else {}
@@ -336,12 +306,6 @@ class AgentRenderer:
 def normalize_template_files(files: Any) -> dict[str, str]:
     if isinstance(files, dict):
         return {str(key): str(value) for key, value in files.items()}
-    if isinstance(files, list):
-        result: dict[str, str] = {}
-        for item in files:
-            if isinstance(item, dict) and item.get("name"):
-                result[str(item["name"])] = str(item.get("content") or "")
-        return result
     return {}
 
 

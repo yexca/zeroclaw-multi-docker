@@ -16,12 +16,14 @@ browser -> manager -> docker-socket-proxy -> Docker daemon
 - `ALLOW_START=1`, `ALLOW_STOP=1`, `ALLOW_RESTARTS=1`: lifecycle operations.
 - `IMAGES=1`: inspect and pull the ZeroClaw image.
 - `NETWORKS=1`: create or inspect the runtime network.
+- `VOLUMES=1`: create and inspect per-agent runtime volumes used by the
+  default `volume` storage driver.
 - `POST=1`: required for Docker write operations such as create/start/stop.
 
 ## Disabled API Areas
 
 The proxy explicitly disables unrelated sections including `EXEC`, `SYSTEM`,
-`VOLUMES`, `SWARM`, `SERVICES`, `SECRETS`, `BUILD`, and `AUTH`.
+`SWARM`, `SERVICES`, `SECRETS`, `BUILD`, and `AUTH`.
 
 `ALLOW_RESTARTS=1` also permits Docker's `kill` endpoint in the upstream proxy
 configuration. Manager code must not call `kill` unless a later safety review

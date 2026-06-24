@@ -5,7 +5,7 @@ provides:
 
 - a Python backend with `/healthz`, `/api/health`, `/api/status`, and the
   manager API under `/api`;
-- a static frontend placeholder served by the backend;
+- a static frontend served by the backend;
 - a Dockerfile for the `manager` Compose service.
 - frontend foundations for locale loading, browser preference persistence, and
   light/dark/system theme application.
@@ -19,16 +19,16 @@ container lightweight while still providing a complete API shape for later
 frontend and Docker integration phases.
 
 Docker lifecycle APIs use the Docker socket proxy URL from `DOCKER_API_URL`.
-They create manager-owned agent containers with stable names, labels, bind
-mounts, loopback gateway port publishing, extra hosts, and the configured
-runtime network. Set `DOCKER_CONTROLLER=fake` to use the lightweight stub in
-tests or local UI-only development.
+They create manager-owned agent containers with stable names, labels, volume or
+bind storage, loopback gateway port publishing, extra hosts, and the configured
+runtime network. Set `DOCKER_CONTROLLER=fake` only for tests or local UI-only
+development.
 
 Agent runtime rendering is centralized in `backend/agent_renderer.py`. The
 same resolver is used for Docker container environment variables, workspace
-template application, env exports, compose exports, and ZeroClaw
-`config.toml` previews. The existing `/bootstrap/render-config.sh` remains the
-runtime source of truth inside agent containers.
+template application, env exports, and ZeroClaw `config.toml` previews. The
+existing `/bootstrap/render-config.sh` remains the runtime source of truth
+inside agent containers.
 
 Validation and safety checks live in `backend/config_validator.py`. Startup is
 blocked when required agent settings are missing, while validation endpoints
@@ -93,7 +93,6 @@ Core endpoints:
 - `POST /api/agents/{id}/validate`
 - `POST /api/agents/{id}/apply-template`
 - `GET /api/agents/{id}/env`
-- `GET /api/agents/{id}/compose`
 - `GET /api/agents/{id}/config-preview`
 - `POST /api/agents/{id}/export`
 - `POST /api/agents/{id}/{start|stop|restart}`

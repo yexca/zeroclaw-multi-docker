@@ -16,12 +16,11 @@ Chinese documentation is available in [README.zh-cn.md](README.zh-cn.md).
 ## What Is Included
 
 - `docker-compose.yml`: WebUI manager and Docker socket proxy.
-- `.env.example`: optional overrides for WebUI/proxy startup.
 - `config/manager.example.yaml`: structured manager configuration.
 - `config/secrets.example.yaml`: local plaintext secrets template.
 - `manager/`: WebUI backend and frontend.
 - `bootstrap/render-config.sh`: rendered into manager-created agent containers.
-- `templates/workspace/`: starter workspace prompt files.
+- `manager/backend/prompt_templates/`: starter workspace prompt files.
 - `docs/`: operator, reference, architecture, and development docs.
 
 ## Start
@@ -69,7 +68,8 @@ Manager-created agents use:
 ZEROCLAW_IMAGE=ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
 ```
 
-Override it in `.env`, `config/manager.yaml`, or per-agent config.
+Override it with the `ZEROCLAW_IMAGE` environment variable,
+`config/manager.yaml`, or per-agent config.
 
 ## Keep Secrets Out Of Git
 

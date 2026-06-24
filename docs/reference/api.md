@@ -67,7 +67,6 @@ operators save it explicitly.
 - `GET /api/agents/{id}/logs`
 - `GET /api/agents/{id}/logs/download`
 - `GET /api/agents/{id}/env`
-- `GET /api/agents/{id}/compose`
 - `GET /api/agents/{id}/config-preview`
 
 ## Dashboard And History

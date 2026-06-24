@@ -841,6 +841,8 @@ else:
 
 
 class FakeDockerController:
+    """Development-only Docker controller used by tests and UI-only local runs."""
+
     def __init__(self, docker_api_url: str = ""):
         self.docker_api_url = docker_api_url
 

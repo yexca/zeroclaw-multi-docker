@@ -35,7 +35,7 @@ services:
       SWARM: ${DOCKER_SOCKET_PROXY_SWARM:-0}
       SYSTEM: ${DOCKER_SOCKET_PROXY_SYSTEM:-0}
       TASKS: ${DOCKER_SOCKET_PROXY_TASKS:-0}
-      VOLUMES: ${DOCKER_SOCKET_PROXY_VOLUMES:-0}
+      VOLUMES: ${DOCKER_SOCKET_PROXY_VOLUMES:-1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:

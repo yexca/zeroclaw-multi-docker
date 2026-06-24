@@ -103,7 +103,7 @@ def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
 
 
 def item_id(item: dict[str, Any]) -> str | None:
-    for key in ("id", "alias", "name", "server_name"):
+    for key in ("id", "alias", "server_name"):
         value = item.get(key)
         if isinstance(value, str) and value:
             return value
@@ -307,11 +307,6 @@ class ConfigStore:
         config = deep_merge(default_config(), raw)
         profiles = config.get("profiles") if isinstance(config.get("profiles"), dict) else {}
         vision_profiles = normalize_collection(profiles.get("vision"))
-        legacy_vision = config.get("vision") if isinstance(config.get("vision"), dict) else {}
-        if not vision_profiles and legacy_vision:
-            migrated = copy.deepcopy(legacy_vision)
-            migrated.setdefault("id", "vision-default")
-            vision_profiles = [migrated]
         config["profiles"] = {
             "llm": normalize_collection(profiles.get("llm")),
             "vision": vision_profiles,
@@ -339,10 +334,7 @@ class ConfigStore:
         return templates
 
     def _default_prompt_template_files(self) -> dict[str, str]:
-        template_dirs = [
-            self.project_root / "templates" / "workspace",
-            Path(__file__).resolve().parent / "prompt_templates",
-        ]
+        template_dirs = [Path(__file__).resolve().parent / "prompt_templates"]
         result: dict[str, str] = {}
         for filename in DEFAULT_PROMPT_TEMPLATE_FILES:
             result[filename] = ""

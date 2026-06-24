@@ -118,8 +118,7 @@ and whether http/https image URLs may be fetched remotely.
 
 The Agents view now focuses on container/runtime wiring and per-agent peer
 membership. Required fields include the agent ID, host port, LLM profile, and
-Matrix profile. The WebUI uses Agent ID as the visible identity; legacy `name`
-values are still understood by the backend for older configs. Matrix identity
+Matrix profile. The WebUI uses Agent ID as the visible identity. Matrix identity
 and credential fields such as `user_id`, `device_id`, `password`,
 `access_token`, and `recovery_key` are edited in the Matrix Profiles view.
 

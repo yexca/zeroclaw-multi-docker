@@ -114,7 +114,7 @@
     "subtitle": "Inspect primary config, resolved config, and generated output preview.",
     "primary": "Primary config",
     "resolved": "Resolved config",
-    "generated": "Generated compose/env preview"
+    "generated": "Generated runtime preview"
   },
   "actions": {
     "create": "Create",

@@ -27,9 +27,7 @@ Primary config is YAML. The manager reads `config/manager.yaml` locally, or
 
 `profiles.vision` entries define reusable image-attachment routes rendered into
 ZeroClaw's `[multimodal]` config. Agents select one with `vision_profile`; if
-an agent leaves it empty, no dedicated vision route is written. Older configs
-with a top-level `vision` object are still normalized into `profiles.vision`
-for compatibility.
+an agent leaves it empty, no dedicated vision route is written.
 
 - `provider_family`, `provider_alias`: provider ref rendered as
   `[providers.models.<family>.<alias>]` and assigned to
@@ -52,8 +50,7 @@ for compatibility.
 
 Common agent fields:
 
-- `id`: unique identifier used by the WebUI. `name` is still accepted for
-  legacy configs, but new WebUI edits use `id` as the visible identity.
+- `id`: unique identifier used by the WebUI.
 - `enabled`: UI/runtime intent.
 - `host_port`: loopback gateway port.
 - `image`: Docker image for this agent. The WebUI fills the current default
