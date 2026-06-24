@@ -286,6 +286,16 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 HISTORY.append("apply-template", agent_id=identifier, result=result)
                 success(self, 200, result)
                 return
+            if method == "POST" and action == "sync-to-runtime":
+                result = DOCKER.sync_to_runtime(config, agent)
+                HISTORY.append("sync-to-runtime", agent_id=identifier, result=result)
+                success(self, 200, result)
+                return
+            if method == "POST" and action == "sync-from-runtime":
+                result = DOCKER.sync_from_runtime(config, agent)
+                HISTORY.append("sync-from-runtime", agent_id=identifier, result=result)
+                success(self, 200, result)
+                return
             if method == "POST" and action == "export":
                 payload = self.read_optional_json()
                 formats = payload.get("formats") if isinstance(payload, dict) and isinstance(payload.get("formats"), list) else None

@@ -58,6 +58,8 @@ def default_config() -> dict[str, Any]:
             "proxy_url": "http://docker-socket-proxy:2375",
             "project_name": "zeroclaw-matrix-multi",
             "control_network": "zeroclaw-matrix-multi_manager-control",
+            "storage_driver": "volume",
+            "volume_prefix": "zeroclaw-matrix-multi",
         },
         "paths": {
             "secrets_file": "/app/config/secrets.yaml",

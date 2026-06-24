@@ -30,6 +30,7 @@ SPEC_HASH_LABEL = "zeroclaw.agent.spec_hash"
 ROLE_LABEL = "zeroclaw.role"
 DEFAULT_IMAGE = "ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian"
 DEFAULT_PROACTIVE_IMAGE = "python:3.12-alpine"
+SYNC_HELPER_IMAGE = "python:3.12-alpine"
 CONTAINER_PORT = "42617/tcp"
 
 
@@ -50,6 +51,12 @@ class DockerController(Protocol):
         ...
 
     def logs(self, config: dict[str, Any], agent: dict[str, Any], tail: int = 200) -> dict[str, Any]:
+        ...
+
+    def sync_to_runtime(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+    def sync_from_runtime(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
         ...
 
 
@@ -120,7 +127,8 @@ class DockerApiController:
     def start(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
         self.configure_client(config)
         self.validator.ensure_valid_for_start(config, agent)
-        spec = self.build_container_spec(config, agent)
+        resolved = self.renderer.resolve_agent(config, agent)
+        spec = self.build_container_spec(config, resolved)
         self.ensure_network(spec.network_name)
         self.pull_image(spec.image)
         existing = self.find_container(spec)
@@ -135,9 +143,16 @@ class DockerApiController:
             )
 
         if existing and self.needs_recreate(existing, spec):
+            if spec.storage_driver == "volume":
+                self.sync_runtime_to_local(spec)
+                actions.append("runtime_synced_to_local")
             self.remove_container(existing["Id"], force=True)
             actions.append("recreated")
             existing = None
+
+        if spec.storage_driver == "volume" and (not existing or not (existing.get("State", {}) or {}).get("Running")):
+            self.sync_local_to_runtime(spec)
+            actions.append("local_synced_to_runtime")
 
         if not existing:
             self.ensure_host_port_available(spec, exclude_container_id=None)
@@ -173,6 +188,9 @@ class DockerApiController:
             if proactive_state.get("Running"):
                 self.client.request("POST", f"/containers/{proactive['Id']}/stop", query={"t": 10})
                 actions.append("proactive_stopped")
+        if spec.storage_driver == "volume":
+            self.sync_runtime_to_local(spec)
+            actions.append("runtime_synced_to_local")
         return self.operation_result("stop", spec, container, actions or ["already_stopped"])
 
     def restart(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
@@ -180,10 +198,14 @@ class DockerApiController:
         self.validator.ensure_valid_for_start(config, agent)
         start_result = self.start(config, agent)
         spec = self.build_container_spec(config, agent)
+        if spec.storage_driver == "volume":
+            self.sync_local_to_runtime(spec)
         container = self.require_managed_container(spec)
         self.client.request("POST", f"/containers/{container['Id']}/restart", query={"t": 10})
         container = self.inspect_container(container["Id"])
         actions = list(start_result.get("actions", [])) + ["restarted"]
+        if spec.storage_driver == "volume" and "local_synced_to_runtime" not in actions:
+            actions.insert(-1, "local_synced_to_runtime")
         return self.operation_result("restart", spec, container, actions)
 
     def delete(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
@@ -213,12 +235,16 @@ class DockerApiController:
         proactive = self.find_container(proactive_spec)
         if proactive and self.is_managed_container(proactive, proactive_spec):
             self.remove_container(proactive["Id"], force=True)
+        actions = ["deleted"]
+        if spec.storage_driver == "volume":
+            self.sync_runtime_to_local(spec)
+            actions.append("runtime_synced_to_local")
         return {
             "agent_id": spec.agent_id,
             "agent_name": spec.agent_name,
             "container_name": spec.container_name,
             "operation": "delete",
-            "actions": ["deleted"],
+            "actions": actions,
             "state": "absent",
             "managed": True,
             "controller": "docker-api",
@@ -292,6 +318,22 @@ class DockerApiController:
             "lines": text.splitlines(),
         }
 
+    def sync_to_runtime(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
+        self.configure_client(config)
+        spec = self.build_container_spec(config, agent)
+        if spec.storage_driver != "volume":
+            return self.operation_result("sync-to-runtime", spec, {}, ["bind_storage_noop"])
+        self.sync_local_to_runtime(spec)
+        return self.operation_result("sync-to-runtime", spec, {}, ["local_synced_to_runtime"])
+
+    def sync_from_runtime(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
+        self.configure_client(config)
+        spec = self.build_container_spec(config, agent)
+        if spec.storage_driver != "volume":
+            return self.operation_result("sync-from-runtime", spec, {}, ["bind_storage_noop"])
+        self.sync_runtime_to_local(spec)
+        return self.operation_result("sync-from-runtime", spec, {}, ["runtime_synced_to_local"])
+
     def reconcile_proactive_container(self, config: dict[str, Any], agent: dict[str, Any], agent_spec: "ContainerSpec") -> list[str]:
         proactive_spec = self.build_proactive_spec(config, agent, agent_spec=agent_spec)
         existing = self.find_container(proactive_spec) if proactive_spec else None
@@ -343,10 +385,19 @@ class DockerApiController:
         image = str(resolved.get("image") or defaults.get("zeroclaw_image") or os.getenv("ZEROCLAW_IMAGE") or DEFAULT_IMAGE)
         project_name = str(docker_config.get("project_name") or "zeroclaw-matrix-multi")
         network_name = str(docker_config.get("runtime_network") or f"{project_name}_default")
+        storage_driver = str(docker_config.get("storage_driver") or "volume").lower()
+        if storage_driver not in {"volume", "bind"}:
+            raise ConfigError("invalid_storage_driver", "Docker storage_driver must be volume or bind.", {"storage_driver": storage_driver})
+        volume_prefix = safe_volume_part(str(docker_config.get("volume_prefix") or project_name))
+        volume_name = f"{volume_prefix}-agent-{safe_name}-data"
         manager_mounts = self.manager_mount_sources()
         project_root = Path(str(paths.get("host_project_dir") or os.getenv("HOST_PROJECT_DIR") or self.project_root)).resolve()
-        instances_dir = Path(str(paths.get("host_instances_dir") or manager_mounts.get("/app/instances") or project_root / "instances")).resolve()
-        bootstrap_dir = Path(str(paths.get("host_bootstrap_dir") or manager_mounts.get("/app/bootstrap") or project_root / "bootstrap")).resolve()
+        local_instances_dir = Path(str(paths.get("instances_dir") or "/app/instances"))
+        instance_dir = local_instances_dir / safe_name
+        host_instances_dir = Path(str(paths.get("host_instances_dir") or manager_mounts.get("/app/instances") or project_root / "instances")).resolve()
+        host_bootstrap_dir = Path(str(paths.get("host_bootstrap_dir") or manager_mounts.get("/app/bootstrap") or project_root / "bootstrap")).resolve()
+        bootstrap_dir = Path("/app/bootstrap" if storage_driver == "volume" else str(host_bootstrap_dir))
+        runtime_instance_dir = instance_dir if storage_driver == "volume" else host_instances_dir / safe_name
         env = self.renderer.render_env(config, resolved)
         matrix_host_ip = env.get("MATRIX_HOST_IP", "127.0.0.1")
 
@@ -364,10 +415,11 @@ class DockerApiController:
             "network_name": network_name,
             "env": env,
             "mounts": [
-                {"Type": "bind", "Source": str(bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
-                {"Type": "bind", "Source": str(instances_dir / safe_name), "Target": "/zeroclaw-data"},
+                self.runtime_mount_payload(storage_driver, volume_name, str(host_bootstrap_dir), str(runtime_instance_dir), "/zeroclaw-data"),
             ],
             "extra_hosts": [f"host.docker.internal:host-gateway", f"matrix-host:{matrix_host_ip}"],
+            "storage_driver": storage_driver,
+            "volume_name": volume_name if storage_driver == "volume" else "",
         }
         spec_hash = stable_hash(spec_payload)
         labels[SPEC_HASH_LABEL] = spec_hash
@@ -380,7 +432,10 @@ class DockerApiController:
             host_port=host_port,
             network_name=network_name,
             bootstrap_dir=bootstrap_dir,
-            instance_dir=instances_dir / safe_name,
+            instance_dir=runtime_instance_dir,
+            local_instance_dir=instance_dir,
+            storage_driver=storage_driver,
+            volume_name=volume_name,
             environment=env,
             labels=labels,
             extra_hosts=spec_payload["extra_hosts"],
@@ -403,7 +458,9 @@ class DockerApiController:
         project_name = str(docker_config.get("project_name") or "zeroclaw-matrix-multi")
         network_name = str(docker_config.get("runtime_network") or f"{project_name}_default")
         project_root = Path(str(paths.get("host_project_dir") or os.getenv("HOST_PROJECT_DIR") or self.project_root)).resolve()
-        bootstrap_dir = Path(str(paths.get("host_bootstrap_dir") or manager_mounts.get("/app/bootstrap") or project_root / "bootstrap")).resolve()
+        storage_driver = agent_spec.storage_driver
+        host_bootstrap_dir = Path(str(paths.get("host_bootstrap_dir") or manager_mounts.get("/app/bootstrap") or project_root / "bootstrap")).resolve()
+        bootstrap_dir = Path("/app/bootstrap" if storage_driver == "volume" else str(host_bootstrap_dir))
         image = str(proactive.get("image") or DEFAULT_PROACTIVE_IMAGE)
         gateway_host = str(proactive.get("gateway_host") or "host.docker.internal")
         default_agent_url = f"http://{gateway_host}:{agent_spec.host_port}/webhook?{urlencode({'agent': agent_spec.agent_id})}"
@@ -435,9 +492,10 @@ class DockerApiController:
             "network_name": network_name,
             "env": env,
             "mounts": [
-                {"Type": "bind", "Source": str(bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
-                {"Type": "bind", "Source": str(agent_spec.instance_dir), "Target": "/state"},
+                self.runtime_mount_payload(storage_driver, agent_spec.volume_name, str(host_bootstrap_dir), str(agent_spec.instance_dir), "/state"),
             ],
+            "storage_driver": storage_driver,
+            "volume_name": agent_spec.volume_name if storage_driver == "volume" else "",
         }
         spec_hash = stable_hash(spec_payload)
         labels[SPEC_HASH_LABEL] = spec_hash
@@ -451,6 +509,9 @@ class DockerApiController:
             network_name=network_name,
             bootstrap_dir=bootstrap_dir,
             instance_dir=agent_spec.instance_dir,
+            local_instance_dir=agent_spec.local_instance_dir,
+            storage_driver=agent_spec.storage_driver,
+            volume_name=agent_spec.volume_name,
             environment=env,
             labels=labels,
             extra_hosts=["host.docker.internal:host-gateway"],
@@ -469,6 +530,9 @@ class DockerApiController:
             network_name=agent_spec.network_name,
             bootstrap_dir=agent_spec.bootstrap_dir,
             instance_dir=agent_spec.instance_dir,
+            local_instance_dir=agent_spec.local_instance_dir,
+            storage_driver=agent_spec.storage_driver,
+            volume_name=agent_spec.volume_name,
             environment={},
             labels={MANAGER_LABEL: "true", AGENT_ID_LABEL: agent_spec.agent_id, AGENT_NAME_LABEL: agent_spec.agent_name, ROLE_LABEL: "proactive"},
             extra_hosts=["host.docker.internal:host-gateway"],
@@ -505,23 +569,31 @@ class DockerApiController:
         self._manager_mounts = result
         return result
 
+    def runtime_mount_payload(self, storage_driver: str, volume_name: str, bootstrap_source: str, instance_source: str, target: str) -> dict[str, Any]:
+        if storage_driver == "volume":
+            return {"Type": "volume", "Source": volume_name, "Target": target}
+        return {"Type": "bind", "Source": instance_source, "Target": target}
+
     def create_container(self, spec: "ContainerSpec") -> dict[str, Any]:
-        spec.instance_dir.mkdir(parents=True, exist_ok=True)
-        (spec.instance_dir / "workspace").mkdir(parents=True, exist_ok=True)
+        if spec.storage_driver == "bind":
+            spec.instance_dir.mkdir(parents=True, exist_ok=True)
+            (spec.instance_dir / "workspace").mkdir(parents=True, exist_ok=True)
+        entrypoint = ["/bin/sh", "/zeroclaw-data/bootstrap/render-config.sh"] if spec.storage_driver == "volume" else ["/bin/sh", "/bootstrap/render-config.sh"]
+        mounts = [{"Type": "volume", "Source": spec.volume_name, "Target": "/zeroclaw-data"}] if spec.storage_driver == "volume" else [
+            {"Type": "bind", "Source": str(spec.bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
+            {"Type": "bind", "Source": str(spec.instance_dir), "Target": "/zeroclaw-data"},
+        ]
         payload = {
             "Image": spec.image,
             "User": "0:0",
             "WorkingDir": "/zeroclaw-data/workspace",
-            "Entrypoint": ["/bin/sh", "/bootstrap/render-config.sh"],
+            "Entrypoint": entrypoint,
             "Env": [f"{key}={value}" for key, value in sorted(spec.environment.items())],
             "Labels": spec.labels,
             "ExposedPorts": {CONTAINER_PORT: {}},
             "HostConfig": {
                 "RestartPolicy": {"Name": "unless-stopped"},
-                "Mounts": [
-                    {"Type": "bind", "Source": str(spec.bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
-                    {"Type": "bind", "Source": str(spec.instance_dir), "Target": "/zeroclaw-data"},
-                ],
+                "Mounts": mounts,
                 "PortBindings": {
                     CONTAINER_PORT: [{"HostIp": "127.0.0.1", "HostPort": str(spec.host_port)}],
                 },
@@ -536,19 +608,22 @@ class DockerApiController:
         return self.client.request("POST", "/containers/create", payload=payload, query={"name": spec.container_name})
 
     def create_proactive_container(self, spec: "ContainerSpec") -> dict[str, Any]:
-        (spec.instance_dir / "proactive").mkdir(parents=True, exist_ok=True)
+        if spec.storage_driver == "bind":
+            (spec.instance_dir / "proactive").mkdir(parents=True, exist_ok=True)
+        entrypoint = ["python", "/state/bootstrap/proactive.py"] if spec.storage_driver == "volume" else ["python", "/bootstrap/proactive.py"]
+        mounts = [{"Type": "volume", "Source": spec.volume_name, "Target": "/state"}] if spec.storage_driver == "volume" else [
+            {"Type": "bind", "Source": str(spec.bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
+            {"Type": "bind", "Source": str(spec.instance_dir), "Target": "/state"},
+        ]
         payload = {
             "Image": spec.image,
             "WorkingDir": "/state",
-            "Entrypoint": ["python", "/bootstrap/proactive.py"],
+            "Entrypoint": entrypoint,
             "Env": [f"{key}={value}" for key, value in sorted(spec.environment.items())],
             "Labels": spec.labels,
             "HostConfig": {
                 "RestartPolicy": {"Name": "unless-stopped"},
-                "Mounts": [
-                    {"Type": "bind", "Source": str(spec.bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
-                    {"Type": "bind", "Source": str(spec.instance_dir), "Target": "/state"},
-                ],
+                "Mounts": mounts,
                 "ExtraHosts": spec.extra_hosts,
             },
             "NetworkingConfig": {
@@ -558,6 +633,108 @@ class DockerApiController:
             },
         }
         return self.client.request("POST", "/containers/create", payload=payload, query={"name": spec.container_name})
+
+    def ensure_volume(self, volume_name: str) -> None:
+        try:
+            self.client.request("GET", f"/volumes/{quote(volume_name, safe='')}")
+            return
+        except DockerApiError as exc:
+            if exc.status != 404:
+                raise
+        self.client.request("POST", "/volumes/create", payload={"Name": volume_name, "Labels": {MANAGER_LABEL: "true"}})
+
+    def sync_local_to_runtime(self, spec: "ContainerSpec") -> None:
+        spec.local_instance_dir.mkdir(parents=True, exist_ok=True)
+        (spec.local_instance_dir / "workspace").mkdir(parents=True, exist_ok=True)
+        self.run_sync_helper(spec, "to-runtime")
+
+    def sync_runtime_to_local(self, spec: "ContainerSpec") -> None:
+        spec.local_instance_dir.mkdir(parents=True, exist_ok=True)
+        self.run_sync_helper(spec, "from-runtime")
+
+    def run_sync_helper(self, spec: "ContainerSpec", direction: str) -> None:
+        helper_name = f"zeroclaw-sync-{spec.safe_name}-{direction}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        script = self.sync_script(direction, spec.safe_name)
+        payload = {
+            "Image": SYNC_HELPER_IMAGE,
+            "Cmd": ["python", "-c", script],
+            "Labels": {MANAGER_LABEL: "true", AGENT_ID_LABEL: spec.agent_id, AGENT_NAME_LABEL: spec.agent_name, ROLE_LABEL: "sync"},
+            "HostConfig": {
+                "AutoRemove": False,
+                "VolumesFrom": ["zeroclaw-manager:rw"],
+                "Mounts": [{"Type": "volume", "Source": spec.volume_name, "Target": "/volume"}],
+            },
+        }
+        container_id = ""
+        try:
+            created = self.client.request("POST", "/containers/create", payload=payload, query={"name": helper_name})
+            container_id = str(created.get("Id") or "")
+            self.client.request("POST", f"/containers/{container_id}/start")
+            result = self.client.request("POST", f"/containers/{container_id}/wait")
+            status_code = result.get("StatusCode") if isinstance(result, dict) else None
+            if status_code != 0:
+                logs = ""
+                try:
+                    logs = decode_docker_log_stream(self.client.request("GET", f"/containers/{container_id}/logs", query={"stdout": 1, "stderr": 1}, raw=True))
+                except DockerApiError:
+                    pass
+                raise ConfigError("sync_failed", "Runtime volume sync failed.", {"direction": direction, "status_code": status_code, "logs": logs}, 502)
+        finally:
+            if container_id:
+                try:
+                    self.remove_container(container_id, force=True)
+                except DockerApiError:
+                    pass
+
+    def sync_script(self, direction: str, safe_name: str) -> str:
+        return f"""
+import os
+import shutil
+import stat
+from pathlib import Path
+
+local = Path('/app/instances') / {safe_name!r}
+volume = Path('/volume')
+bootstrap = Path('/app/bootstrap')
+
+def copy_tree(src, dst):
+    if not src.exists():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in src.iterdir():
+        target = dst / item.name
+        try:
+            mode = item.lstat().st_mode
+        except OSError:
+            continue
+        if stat.S_ISSOCK(mode) or stat.S_ISFIFO(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode):
+            continue
+        if item.is_dir():
+            if target.exists():
+                shutil.rmtree(target)
+            copy_tree(item, target)
+        elif item.is_symlink():
+            if target.exists() or target.is_symlink():
+                target.unlink()
+            target.symlink_to(os.readlink(item))
+        else:
+            if target.exists() and target.is_dir():
+                shutil.rmtree(target)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
+
+if {direction!r} == 'to-runtime':
+    volume.mkdir(parents=True, exist_ok=True)
+    copy_tree(local, volume)
+    if bootstrap.exists():
+        target = volume / 'bootstrap'
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(bootstrap, target, symlinks=True)
+else:
+    local.mkdir(parents=True, exist_ok=True)
+    copy_tree(volume, local)
+"""
 
     def ensure_network(self, network_name: str) -> None:
         try:
@@ -706,6 +883,12 @@ class FakeDockerController:
             },
         }
 
+    def sync_to_runtime(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
+        return self._operation("sync-to-runtime", agent, "stubbed")
+
+    def sync_from_runtime(self, config: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
+        return self._operation("sync-from-runtime", agent, "stubbed")
+
     def _operation(self, operation: str, agent: dict[str, Any], state: str) -> dict[str, Any]:
         return {
             "agent_id": self._agent_id(agent),
@@ -736,6 +919,9 @@ class ContainerSpec:
         network_name: str,
         bootstrap_dir: Path,
         instance_dir: Path,
+        local_instance_dir: Path,
+        storage_driver: str,
+        volume_name: str,
         environment: dict[str, str],
         labels: dict[str, str],
         extra_hosts: list[str],
@@ -750,6 +936,9 @@ class ContainerSpec:
         self.network_name = network_name
         self.bootstrap_dir = bootstrap_dir
         self.instance_dir = instance_dir
+        self.local_instance_dir = local_instance_dir
+        self.storage_driver = storage_driver
+        self.volume_name = volume_name
         self.environment = environment
         self.labels = labels
         self.extra_hosts = extra_hosts
@@ -768,6 +957,11 @@ def build_controller_from_env(project_root: Path) -> DockerController:
 def safe_container_part(value: str) -> str:
     safe = re.sub(r"[^a-zA-Z0-9_.-]+", "-", value.strip()).strip("-._")
     return safe.lower() or "agent"
+
+
+def safe_volume_part(value: str) -> str:
+    safe = re.sub(r"[^a-zA-Z0-9_.-]+", "-", value.strip()).strip("-._")
+    return safe.lower() or "zeroclaw"
 
 
 def first_item(value: Any) -> str:

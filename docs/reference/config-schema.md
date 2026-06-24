@@ -10,7 +10,7 @@ Primary config is YAML. The manager reads `config/manager.yaml` locally, or
 - `webui`: default UI language and theme.
 - `server`: local WebUI bind host and host port.
 - `docker`: Docker API proxy URL, Compose project name, control network,
-  runtime network, and Matrix host IP.
+  runtime network, Matrix host IP, and optional runtime storage settings.
 - `paths`: container paths plus optional host paths for Docker bind mounts.
 - `defaults`: shared image and Matrix defaults.
 - `vision`: shared vision model route.
@@ -57,6 +57,21 @@ Common agent fields:
 - `timezone`: timezone used for quiet hours.
 - `prompt`: optional wake prompt override. Empty uses the built-in prompt that
   asks the agent to review `PROACTIVE.md`, memory, and current context.
+
+## Docker Runtime Storage
+
+`docker.storage_driver` controls how managed agent containers receive their
+runtime filesystem:
+
+- `volume` (default): use a per-agent Docker named volume for container runtime
+  data, while keeping a local copy under `paths.instances_dir`. The manager
+  syncs local files to the runtime volume before start/restart and can sync the
+  runtime volume back to local files.
+- `bind`: mount host paths directly, using `paths.host_instances_dir` and
+  `paths.host_bootstrap_dir` or paths discovered from the manager container.
+
+`docker.volume_prefix` optionally customizes runtime volume names. The default
+prefix is `docker.project_name`.
 
 ## Prompt Template Fields
 

@@ -1091,6 +1091,8 @@ const ACTION_ICONS = {
   "actions.save": "save",
   "actions.start": "play",
   "actions.stop": "square",
+  "actions.syncFromRuntime": "download",
+  "actions.syncToRuntime": "upload",
   "actions.validate": "circle-check"
 };
 
@@ -1110,6 +1112,7 @@ const ICON_PATHS = {
   sparkles: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"></path><path d="M5 3v4"></path><path d="M3 5h4"></path><path d="M19 17v4"></path><path d="M17 19h4"></path>',
   square: '<rect x="6" y="6" width="12" height="12" rx="2"></rect>',
   trash: '<path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5"></path><path d="M12 3v12"></path>',
   x: '<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>'
 };
 
@@ -1355,6 +1358,8 @@ function renderAgentForm(agent) {
       ${actionButton("agent-save", "actions.save", "primary")}
       ${actionButton("agent-validate", "actions.validate")}
       ${actionButton("agent-apply-template", "actions.applyTemplate", "secondary", !agent.prompt_template)}
+      ${actionButton("agent-sync-to-runtime", "actions.syncToRuntime")}
+      ${actionButton("agent-sync-from-runtime", "actions.syncFromRuntime")}
     </div>
     ${renderValidation()}
   `;
@@ -2052,6 +2057,16 @@ async function handleAction(action) {
       },
       "messages.templateApplied"
     );
+  }
+  if (action === "agent-sync-to-runtime" || action === "agent-sync-from-runtime") {
+    const agent = selectedAgent();
+    if (!agent) return;
+    const id = itemId(agent);
+    const endpoint = action === "agent-sync-to-runtime" ? "sync-to-runtime" : "sync-from-runtime";
+    const successKey = action === "agent-sync-to-runtime" ? "messages.syncedToRuntime" : "messages.syncedFromRuntime";
+    return runAction(async () => {
+      await api(`/api/agents/${encodeURIComponent(id)}/${endpoint}`, { method: "POST", body: "{}" });
+    }, successKey);
   }
   if (action === "agent-delete-current") return deleteAgent(state.selectedAgentId);
 

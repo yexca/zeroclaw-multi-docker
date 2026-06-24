@@ -12,13 +12,15 @@ docker:
   control_network: zeroclaw-matrix-multi_manager-control
   runtime_network: zeroclaw-matrix-multi_default
   matrix_host_ip: 127.0.0.1
+  storage_driver: volume
+  volume_prefix: zeroclaw-matrix-multi
 
 paths:
   secrets_file: /app/config/secrets.yaml
   generated_dir: /app/config/generated
   instances_dir: /app/instances
-  # Host paths are used by the Docker API when creating bind mounts.
-  # Override these if the manager container cannot infer the project path.
+  # Host paths are used only when docker.storage_driver is bind.
+  # Override these if bind mode cannot infer the project path.
   # host_project_dir: /absolute/path/to/zeroclaw_multi_docker
   # host_instances_dir: /absolute/path/to/zeroclaw_multi_docker/instances
   # host_bootstrap_dir: /absolute/path/to/zeroclaw_multi_docker/bootstrap

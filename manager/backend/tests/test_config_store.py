@@ -297,6 +297,9 @@ class DockerControllerTest(unittest.TestCase):
         self.assertEqual(spec.labels[AGENT_ID_LABEL], "agent1")
         self.assertEqual(spec.labels[AGENT_NAME_LABEL], "Agent One")
         self.assertIn("host.docker.internal:host-gateway", spec.extra_hosts)
+        self.assertEqual(spec.storage_driver, "volume")
+        self.assertEqual(spec.volume_name, "zeroclaw-matrix-multi-agent-agent-one-data")
+        self.assertEqual(spec.local_instance_dir, Path("/app/instances") / "agent-one")
 
     def test_manager_label_is_required_for_operations(self) -> None:
         controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
@@ -325,7 +328,7 @@ class DockerControllerTest(unittest.TestCase):
             "/app/bootstrap": str(Path(self.temp_dir.name) / "host-bootstrap"),
         }
 
-        spec = controller.build_container_spec({}, {"id": "agent1", "host_port": 42641})
+        spec = controller.build_container_spec({"docker": {"storage_driver": "bind"}}, {"id": "agent1", "host_port": 42641})
 
         self.assertEqual(spec.instance_dir, Path(self.temp_dir.name) / "host-instances" / "agent1")
         self.assertEqual(spec.bootstrap_dir, Path(self.temp_dir.name) / "host-bootstrap")
@@ -351,7 +354,9 @@ class DockerControllerTest(unittest.TestCase):
         self.assertEqual(spec.container_name, "zeroclaw-proactive-agent1")
         self.assertEqual(spec.environment["PROACTIVE_AGENT_URL"], "http://host.docker.internal:42641/webhook?agent=agent1")
         self.assertEqual(spec.environment["PROACTIVE_TARGET"], "@you:matrix.example.com")
-        self.assertEqual(spec.instance_dir, Path(self.temp_dir.name) / "host-instances" / "agent1")
+        self.assertEqual(spec.storage_driver, "volume")
+        self.assertEqual(spec.volume_name, "zeroclaw-matrix-multi-agent-agent1-data")
+        self.assertEqual(spec.local_instance_dir, Path("/app/instances") / "agent1")
 
     def test_build_proactive_spec_allows_gateway_url_override(self) -> None:
         controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))

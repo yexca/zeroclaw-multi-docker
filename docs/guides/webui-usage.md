@@ -121,6 +121,13 @@ Dashboard only lists agents whose workspace has been initialized, so draft
 configurations do not appear as runnable agents until `Apply template` has
 created their workspace files.
 
+When Docker runtime storage is `volume`, the manager keeps local agent files
+under `instances/` for inspection and uses a Docker named volume for the running
+container. Starting or restarting an agent syncs local files into the runtime
+volume first. The Agent Editor also exposes manual sync actions for copying
+local files to the runtime volume or copying runtime changes back to local
+files.
+
 The Proactive sidecar section can create one companion container per agent.
 The sidecar reads the agent's configured `host_port` and calls that agent's
 gateway automatically through `/webhook?agent=<id>`. Operators normally do not
