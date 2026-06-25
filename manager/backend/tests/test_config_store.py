@@ -14,6 +14,7 @@ from manager.backend.docker_controller import (
     AGENT_ID_LABEL,
     AGENT_NAME_LABEL,
     MANAGER_LABEL,
+    DockerApiError,
     DockerApiController,
     FakeDockerController,
     decode_build_stream,
@@ -414,6 +415,23 @@ class DockerControllerTest(unittest.TestCase):
 
         self.assertEqual(events[0]["stream"], "Step 1")
         self.assertEqual(events[1]["aux"]["ID"], "sha256:abc")
+
+    def test_build_image_403_reports_disabled_build_permission(self) -> None:
+        controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
+        controller.pull_image = lambda _image: None
+        controller.inspect_image = lambda _image: {"Config": {"User": "1000:1000"}}
+
+        def denied(*_args, **_kwargs):
+            raise DockerApiError(403, "<html><body><h1>403 Forbidden</h1> Request forbidden by administrative rules. </body></html>")
+
+        controller.client.request_bytes = denied
+
+        with self.assertRaises(ConfigError) as context:
+            controller.build_derived_image("python", "example/zeroclaw:test", "zeroclaw-python:test")
+
+        self.assertEqual(context.exception.code, "docker_build_permission_disabled")
+        self.assertIn("DOCKER_SOCKET_PROXY_BUILD=1", context.exception.message)
+        self.assertNotIn("<html>", context.exception.message)
 
     def test_delete_refuses_expected_resource(self) -> None:
         controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))

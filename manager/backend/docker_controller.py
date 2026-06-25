@@ -1341,14 +1341,24 @@ else:
                 sort_keys=True,
             ),
         }
-        raw = self.client.request_bytes(
-            "POST",
-            "/build",
-            context,
-            headers={"Content-Type": "application/x-tar"},
-            query=query,
-            raw=True,
-        )
+        try:
+            raw = self.client.request_bytes(
+                "POST",
+                "/build",
+                context,
+                headers={"Content-Type": "application/x-tar"},
+                query=query,
+                raw=True,
+            )
+        except DockerApiError as exc:
+            if exc.status == 403:
+                raise ConfigError(
+                    "docker_build_permission_disabled",
+                    "Docker build permission is not enabled. Copy .env.example to .env, keep DOCKER_SOCKET_PROXY_BUILD=1, restart Docker Compose, then try building again.",
+                    {"target_image": target_image, "base_image": base_image, "status": exc.status},
+                    403,
+                ) from exc
+            raise
         events = decode_build_stream(raw)
         errors = [event for event in events if event.get("error") or event.get("errorDetail")]
         if errors:
