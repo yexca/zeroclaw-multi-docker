@@ -56,6 +56,29 @@ def test_support_file_policy_blocks_scripts_until_enabled(tmp_path: Path) -> Non
     assert result["file_path"] == "scripts/run.sh"
 
 
+def test_binary_support_files_use_bytes_api(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path)
+    cfg = config(tmp_path)
+    store.create_skill(cfg, "core", {"name": "assets", "frontmatter": {"description": "Asset helper"}})
+    content = b"\x89PNG\r\n\x1a\n\x00\x00"
+
+    result = store.write_support_file_bytes(cfg, "core", "assets", "assets/logo.png", content)
+    assert result["file_path"] == "assets/logo.png"
+    assert result["bytes"] == len(content)
+    assert result["text"] is False
+
+    info = store.support_file_info(cfg, "core", "assets", "assets/logo.png")
+    assert info["text"] is False
+
+    with pytest.raises(ConfigError) as exc:
+        store.read_support_file(cfg, "core", "assets", "assets/logo.png")
+    assert exc.value.code == "binary_file"
+
+    download_info, downloaded = store.read_support_file_bytes(cfg, "core", "assets", "assets/logo.png")
+    assert download_info["file_path"] == "assets/logo.png"
+    assert downloaded == content
+
+
 def test_rejects_paths_outside_shared_and_skill_dir(tmp_path: Path) -> None:
     store = SkillStore(tmp_path)
     cfg = {"skill_bundles": [{"id": "bad", "directory": "../outside"}]}

@@ -118,7 +118,7 @@
     "addTextFileSubtitle": "Create a UTF-8 text file under the selected support directory.",
     "uploadFileTitle": "Upload support file",
     "uploadFileSubtitle": "Upload a local text file into the selected support directory.",
-    "uploadTextOnlyNotice": "This upload path currently stores UTF-8 text files. Binary asset upload needs a backend endpoint and will be added separately."
+    "uploadTextOnlyNotice": "Uploads preserve the original file bytes. Text files can be edited after upload; binary files can be downloaded or replaced."
   },
   "prompts": {
     "title": "Prompt Templates",
@@ -188,7 +188,8 @@
     "archive": "Archive",
     "load": "Load",
     "upload": "Upload",
-    "enable": "Enable"
+    "enable": "Enable",
+    "download": "Download"
   },
   "fields": {
     "id": "ID",
@@ -345,7 +346,7 @@
     "requiredField": "{field} is required. Please fill it in.",
     "invalidTemplateFile": "Template file names must be plain workspace file names using letters, numbers, dot, underscore, or hyphen.",
     "invalidSupportFileName": "Support file names must include a file extension and stay inside the selected support file type.",
-    "binaryUploadNotSupported": "Binary upload is not wired yet. Choose a text file for now."
+    "binaryFileSelected": "Binary file selected. Use Download to inspect it, or upload a replacement."
   },
   "confirm": {
     "deleteAgent": "Delete this agent? This cannot be undone.",

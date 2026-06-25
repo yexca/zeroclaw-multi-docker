@@ -1054,21 +1054,8 @@ function defaultSupportPath(type = state.selectedSupportType) {
   return `${type}/${defaultSupportFileName(type)}`;
 }
 
-function isLikelyTextFile(name) {
-  return /\.(md|txt|json|yaml|yml|toml|csv|tsv|xml|html|css|js|mjs|ts|tsx|jsx|py|sh|bash|zsh|ps1|bat|cmd|rs|go|java|c|cc|cpp|h|hpp|sql|ini|env|log)$/i.test(name);
-}
-
 function supportTypeLabel(type) {
   return t(`skills.supportTypes.${type}`);
-}
-
-function ensureTextUploadFile(file) {
-  if (!file || typeof file.name !== "string" || !file.name) {
-    throw new FormValidationError(t("messages.requiredField").replace("{field}", fieldDisplayName("support_upload_file")), "support_upload_file");
-  }
-  if (file.type && file.type.startsWith("text/")) return;
-  if (isLikelyTextFile(file.name)) return;
-  throw new FormValidationError(t("messages.binaryUploadNotSupported"), "support_upload_file");
 }
 
 function supportFileUploadPathFromForm(data, file) {
@@ -1322,6 +1309,7 @@ const ACTION_ICONS = {
   "actions.create": "plus",
   "actions.delete": "trash",
   "actions.downloadLogs": "download",
+  "actions.download": "download",
   "actions.duplicate": "copy",
   "actions.edit": "edit",
   "actions.export": "download",
@@ -2403,6 +2391,7 @@ function renderSkillSupportView() {
         <div class="button-row form-actions">
           ${actionButton("skill-file-load", "actions.load")}
           ${actionButton("skill-file-save", "actions.save", "primary")}
+          ${actionButton("skill-file-download", "actions.download", "secondary", !selectedFile)}
           ${actionButton("skill-file-delete", "actions.delete", "danger")}
         </div>
       </form>
@@ -3252,6 +3241,7 @@ async function handleAction(action) {
   if (action === "skill-archive") return archiveSkill();
   if (action === "skill-file-load") return loadSkillSupportFile();
   if (action === "skill-file-save") return saveSkillSupportFile();
+  if (action === "skill-file-download") return downloadSkillSupportFile();
   if (action === "skill-file-delete") return deleteSkillSupportFile();
   if (action === "support-file-create-open") {
     openSupportFileDialog("create");
@@ -3466,12 +3456,14 @@ async function loadSkillSupportFile(filePath = "") {
   }
   if (!selected) return;
   return runAction(async () => {
-    const result = await api(
-      `/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files/${encodeURIComponent(selected)}`
-    );
-    state.selectedSkillFile = result.file_path || selected;
-    state.skillFilePathDraft = result.file_path || selected;
-    state.skillFileDraft = result.content || "";
+    state.selectedSkillFile = selected;
+    state.skillFilePathDraft = selected;
+    try {
+      state.skillFileDraft = await fetchSupportFileContent(selected);
+    } catch (error) {
+      state.skillFileDraft = "";
+      showNotice(t("messages.binaryFileSelected"), "info");
+    }
   });
 }
 
@@ -3509,11 +3501,8 @@ async function uploadSupportTextFileFromDialog() {
   if (!form) return;
   const data = new FormData(form);
   const file = data.get("support_upload_file");
-  try {
-    ensureTextUploadFile(file);
-  } catch (error) {
-    if (error instanceof FormValidationError) return alertValidation(error);
-    throw error;
+  if (!file || typeof file.name !== "string" || !file.name) {
+    return alertValidation(new FormValidationError(t("messages.requiredField").replace("{field}", fieldDisplayName("support_upload_file")), "support_upload_file"));
   }
   let filePath;
   try {
@@ -3522,8 +3511,8 @@ async function uploadSupportTextFileFromDialog() {
     if (error instanceof FormValidationError) return alertValidation(error);
     throw error;
   }
-  const content = await file.text();
-  return writeSupportFile(filePath, content, { closeDialog: true });
+  const contentBase64 = await fileToBase64(file);
+  return uploadSupportFile(filePath, contentBase64, { closeDialog: true });
 }
 
 async function writeSupportFile(filePath, content, { closeDialog = false } = {}) {
@@ -3540,6 +3529,38 @@ async function writeSupportFile(filePath, content, { closeDialog = false } = {})
     if (closeDialog) state.supportFileDialog = null;
     await refreshSkillDocument();
   }, "messages.saved");
+}
+
+async function uploadSupportFile(filePath, contentBase64, { closeDialog = false } = {}) {
+  return runAction(async () => {
+    const result = await api(`/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files/upload`, {
+      method: "POST",
+      body: JSON.stringify({ file_path: filePath, content_base64: contentBase64 })
+    });
+    const parts = supportPathParts(filePath);
+    state.selectedSupportType = parts.type;
+    state.selectedSkillFile = filePath;
+    state.skillFilePathDraft = filePath;
+    state.skillFileDraft = result.text ? await fetchSupportFileContent(filePath) : "";
+    if (closeDialog) state.supportFileDialog = null;
+    await refreshSkillDocument();
+  }, "messages.saved");
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",", 2)[1] || "");
+    reader.onerror = () => reject(reader.error || new Error("file_read_failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fetchSupportFileContent(filePath) {
+  const result = await api(
+    `/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files/${encodeURIComponent(filePath)}`
+  );
+  return result.content || "";
 }
 
 async function enableSkillScripts() {
@@ -3571,6 +3592,19 @@ async function deleteSkillSupportFile() {
     state.skillFilePathDraft = "references/notes.md";
     await refreshSkillDocument();
   }, "messages.deleted");
+}
+
+function downloadSkillSupportFile() {
+  const form = document.querySelector('[data-form="skill-doc"]');
+  if (!form) return;
+  let filePath;
+  try {
+    filePath = supportFilePathFromForm(new FormData(form));
+  } catch (error) {
+    if (error instanceof FormValidationError) return alertValidation(error);
+    throw error;
+  }
+  window.location.href = `/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files/${encodeURIComponent(filePath)}/download`;
 }
 
 function bindEvents() {

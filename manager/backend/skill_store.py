@@ -23,6 +23,7 @@ SKILL_MANIFEST = "SKILL.md"
 SKILL_SUBDIRS = ("scripts", "references", "assets")
 SKILL_ARCHIVE_DIR = "_deleted"
 MAX_FILE_BYTES = 256 * 1024
+MAX_BINARY_FILE_BYTES = 10 * 1024 * 1024
 SAFE_SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
@@ -167,12 +168,7 @@ class SkillStore:
         content = str(payload.get("content") or "")
         if len(content.encode("utf-8")) > MAX_FILE_BYTES:
             raise ConfigError("file_too_large", "Support file exceeds the maximum size.", {"max_bytes": MAX_FILE_BYTES}, 413)
-        if relative.parts[0] == "scripts" and not bool((config.get("skills") or {}).get("allow_scripts")):
-            raise ConfigError("scripts_disabled", "Script files are disabled by skills.allow_scripts.", status=422)
-        directory = self.skill_dir(config, alias, skill_name)
-        if not directory.is_dir():
-            raise ConfigError("not_found", "Skill was not found.", {"bundle": alias, "name": skill_name}, 404)
-        target = safe_child(directory, relative)
+        target = self.support_file_target(config, alias, skill_name, relative, write=True)
         self.atomic_write(target, content)
         return {"bundle": alias, "name": skill_name, "file_path": relative.as_posix(), "bytes": len(content.encode("utf-8"))}
 
@@ -180,17 +176,59 @@ class SkillStore:
         alias = require_slug(bundle, "bundle")
         skill_name = require_slug(name, "skill")
         relative = safe_support_path(file_path)
-        target = safe_child(self.skill_dir(config, alias, skill_name), relative)
+        target = self.support_file_target(config, alias, skill_name, relative)
         if not target.is_file():
             raise ConfigError("not_found", "Support file was not found.", {"file_path": relative.as_posix()}, 404)
-        content = target.read_text(encoding="utf-8")
-        return {"bundle": alias, "name": skill_name, "file_path": relative.as_posix(), "content": content}
+        data = target.read_bytes()
+        try:
+            content = data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ConfigError("binary_file", "Support file is not UTF-8 text. Use the download endpoint.", {"file_path": relative.as_posix()}, 415) from exc
+        return {"bundle": alias, "name": skill_name, "file_path": relative.as_posix(), "content": content, "bytes": len(data), "text": True}
+
+    def write_support_file_bytes(self, config: dict[str, Any], bundle: str, name: str, file_path: str, content: bytes) -> dict[str, Any]:
+        alias = require_slug(bundle, "bundle")
+        skill_name = require_slug(name, "skill")
+        relative = safe_support_path(file_path)
+        if len(content) > MAX_BINARY_FILE_BYTES:
+            raise ConfigError("file_too_large", "Support file exceeds the maximum size.", {"max_bytes": MAX_BINARY_FILE_BYTES}, 413)
+        target = self.support_file_target(config, alias, skill_name, relative, write=True)
+        self.atomic_write_bytes(target, content)
+        return {
+            "bundle": alias,
+            "name": skill_name,
+            "file_path": relative.as_posix(),
+            "bytes": len(content),
+            "text": is_utf8_text(content),
+        }
+
+    def support_file_info(self, config: dict[str, Any], bundle: str, name: str, file_path: str) -> dict[str, Any]:
+        alias = require_slug(bundle, "bundle")
+        skill_name = require_slug(name, "skill")
+        relative = safe_support_path(file_path)
+        target = self.support_file_target(config, alias, skill_name, relative)
+        if not target.is_file():
+            raise ConfigError("not_found", "Support file was not found.", {"file_path": relative.as_posix()}, 404)
+        data = target.read_bytes()
+        return {
+            "bundle": alias,
+            "name": skill_name,
+            "file_path": relative.as_posix(),
+            "bytes": len(data),
+            "text": is_utf8_text(data),
+        }
+
+    def read_support_file_bytes(self, config: dict[str, Any], bundle: str, name: str, file_path: str) -> tuple[dict[str, Any], bytes]:
+        info = self.support_file_info(config, bundle, name, file_path)
+        relative = safe_support_path(str(info["file_path"]))
+        target = safe_child(self.skill_dir(config, str(info["bundle"]), str(info["name"])), relative)
+        return info, target.read_bytes()
 
     def delete_support_file(self, config: dict[str, Any], bundle: str, name: str, file_path: str) -> dict[str, Any]:
         alias = require_slug(bundle, "bundle")
         skill_name = require_slug(name, "skill")
         relative = safe_support_path(file_path)
-        target = safe_child(self.skill_dir(config, alias, skill_name), relative)
+        target = self.support_file_target(config, alias, skill_name, relative)
         if not target.is_file():
             raise ConfigError("not_found", "Support file was not found.", {"file_path": relative.as_posix()}, 404)
         target.unlink()
@@ -243,11 +281,32 @@ class SkillStore:
                     files.append(path.relative_to(directory).as_posix())
         return files
 
+    def support_file_target(self, config: dict[str, Any], alias: str, skill_name: str, relative: PurePosixPath, write: bool = False) -> Path:
+        if relative.parts[0] == "scripts" and write and not bool((config.get("skills") or {}).get("allow_scripts")):
+            raise ConfigError("scripts_disabled", "Script files are disabled by skills.allow_scripts.", status=422)
+        directory = self.skill_dir(config, alias, skill_name)
+        if not directory.is_dir():
+            raise ConfigError("not_found", "Skill was not found.", {"bundle": alias, "name": skill_name}, 404)
+        return safe_child(directory, relative)
+
     def atomic_write(self, path: Path, content: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_name, path)
+        finally:
+            if os.path.exists(temp_name):
+                os.unlink(temp_name)
+
+    def atomic_write_bytes(self, path: Path, content: bytes) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+        try:
+            with os.fdopen(fd, "wb") as handle:
                 handle.write(content)
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -358,3 +417,11 @@ def safe_support_path(value: str) -> PurePosixPath:
     if any(part in {"", ".", ".."} for part in path.parts):
         raise ConfigError("invalid_support_path", "Support file path contains an invalid segment.", {"path": value}, 422)
     return path
+
+
+def is_utf8_text(content: bytes) -> bool:
+    try:
+        content.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return b"\x00" not in content

@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sys
+import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -65,6 +67,16 @@ def text_response(handler: BaseHTTPRequestHandler, status: int, body: str, filen
         handler.send_header("Content-Disposition", f'attachment; filename="{filename}"')
     handler.end_headers()
     handler.wfile.write(encoded)
+
+
+def bytes_response(handler: BaseHTTPRequestHandler, status: int, body: bytes, content_type: str, filename: str | None = None) -> None:
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    if filename:
+        handler.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+    handler.end_headers()
+    handler.wfile.write(body)
 
 
 def success(handler: BaseHTTPRequestHandler, status: int, data: object, meta: dict | None = None) -> None:
@@ -310,6 +322,12 @@ class ManagerHandler(BaseHTTPRequestHandler):
             HISTORY.append("skill-file-write", result=result)
             success(self, 200, result)
             return
+        if len(segments) == 6 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "files" and segments[5] == "upload":
+            if method == "POST":
+                result = self.write_support_file_upload(config, segments[1], segments[3])
+                HISTORY.append("skill-file-upload", result=result)
+                success(self, 200, result)
+                return
         if len(segments) == 6 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "files":
             file_path = unquote(segments[5])
             if method == "GET":
@@ -320,7 +338,31 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 HISTORY.append("skill-file-delete", result=result)
                 success(self, 200, result)
                 return
+        if len(segments) == 7 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "files":
+            file_path = unquote(segments[5])
+            if method == "GET" and segments[6] == "meta":
+                success(self, 200, SKILLS.support_file_info(config, segments[1], segments[3], file_path))
+                return
+            if method == "GET" and segments[6] == "download":
+                info, body = SKILLS.read_support_file_bytes(config, segments[1], segments[3], file_path)
+                content_type = mimetypes.guess_type(str(info["file_path"]))[0] or "application/octet-stream"
+                bytes_response(self, 200, body, content_type, filename=Path(str(info["file_path"])).name)
+                return
         error_response(self, 405, "method_not_allowed", "Unsupported skills operation.", {"method": method})
+
+    def write_support_file_upload(self, config: dict, bundle: str, skill: str) -> dict:
+        payload = self.read_json()
+        if not isinstance(payload, dict):
+            raise ConfigError("invalid_payload", "Support file upload payload must be an object.", status=400)
+        file_path = str(payload.get("file_path") or "").strip()
+        encoded = str(payload.get("content_base64") or "")
+        if not encoded:
+            raise ConfigError("invalid_payload", "Support file upload requires content_base64.", status=422)
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except ValueError as exc:
+            raise ConfigError("invalid_base64", "Support file upload content_base64 is invalid.", status=422) from exc
+        return SKILLS.write_support_file_bytes(config, bundle, skill, file_path, content)
 
     def route_agents(self, method: str, segments: list[str], query: dict[str, list[str]]) -> None:
         if not segments:
