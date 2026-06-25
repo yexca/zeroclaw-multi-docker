@@ -99,6 +99,10 @@
     "subtitle": "One MCP gateway/server profile can be assigned per agent.",
     "empty": "Create or select an MCP profile."
   },
+  "profiles": {
+    "usedBy": "Used by",
+    "noUsage": "No agents use this profile."
+  },
   "skills": {
     "title": "Skills",
     "subtitle": "Manage canonical SKILL.md bundles, support files, and agent skill settings.",
@@ -173,6 +177,7 @@
   },
   "actions": {
     "create": "Create",
+    "addNew": "Add new",
     "duplicate": "Duplicate",
     "edit": "Edit",
     "save": "Save",
@@ -398,6 +403,8 @@
     "loading": "Loading...",
     "empty": "Nothing here yet.",
     "none": "None",
+    "used": "Used",
+    "unused": "Unused",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "enabled": "Enabled",

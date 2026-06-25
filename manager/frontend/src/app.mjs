@@ -302,6 +302,7 @@ Update this file as you evolve. Your identity is yours to shape.
 const TABS = ["dashboard", "agents", "llm", "vision", "matrix", "mcp", "skills", "prompts", "images", "resources", "export"];
 const DEFAULT_TAB = "agents";
 const SECRET_KEYS = ["api_key", "token", "password", "recovery_key", "secret"];
+const ADD_NEW_PROFILE_VALUE = "__add_new_profile__";
 const LLM_PRESETS = {
   openai: {
     label: "OpenAI",
@@ -972,6 +973,24 @@ function optionList(items, selected, emptyKey) {
     .join("")}`;
 }
 
+function agentProfileOptionList(kind, selected, emptyKey) {
+  return `${optionList(collection(kind), selected, emptyKey)}<option value="${ADD_NEW_PROFILE_VALUE}">+ ${escapeHtml(t("actions.addNew"))}</option>`;
+}
+
+function profileUsage(kind, profileId) {
+  const fieldName = `${kind}_profile`;
+  return collection("agents")
+    .filter((agent) => String(agent[fieldName] || "") === profileId)
+    .map((agent) => ({ id: itemId(agent), fieldName }));
+}
+
+function profileUsageTag(kind, profileId) {
+  if (!["llm", "vision", "matrix", "mcp"].includes(kind)) return "";
+  const count = profileUsage(kind, profileId).length;
+  const key = count ? "common.used" : "common.unused";
+  return `<span class="list-tag usage-corner ${count ? "used" : "unused"}">${escapeHtml(t(key))}${count ? ` ${count}` : ""}</span>`;
+}
+
 function optionsFromPairs(items, selected) {
   return items
     .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`)
@@ -1303,6 +1322,12 @@ function createVisionProfile(id) {
     allow_remote_fetch: false,
     _draft: true
   };
+}
+
+function createProfileDraft(kind) {
+  if (kind === "llm") return createLlmProfile(nextId(kind, collection(kind)));
+  if (kind === "vision") return createVisionProfile(nextId("vision", collection(kind)));
+  return { id: nextId(kind, collection(kind)), _draft: true };
 }
 
 function applyLlmPresetToEmptyFields(item, family) {
@@ -2001,9 +2026,10 @@ function renderItemList(kind, items, selectedId) {
     .map((item) => {
       const id = itemId(item);
       const modelTag = kind === "llm" && item.model ? `<span class="list-tag">${escapeHtml(item.model)}</span>` : "";
+      const usedTag = profileUsageTag(kind, id);
       return `<button type="button" class="list-item ${id === selectedId ? "active" : ""}" data-select-${kind}="${escapeHtml(
         id
-      )}"><span class="list-item-main">${escapeHtml(id)}</span>${modelTag}</button>`;
+      )}"><span class="list-item-main">${escapeHtml(id)}</span>${modelTag}${usedTag}</button>`;
     })
     .join("");
 }
@@ -2044,13 +2070,13 @@ function renderAgentPrimaryFields(agent) {
     <div class="form-grid">
       ${field("fields.id", "id", itemId(agent), "required", "fieldHelp.agent.id")}
       ${field("fields.hostPort", "host_port", hostPort, 'type="number" min="1" max="65535" required', "fieldHelp.agent.hostPort")}
-      ${selectField("fields.llmProfile", "llm_profile", optionList(collection("llm"), agent.llm_profile, "common.none"), "required", "fieldHelp.agent.llmProfile")}
-      ${selectField("fields.visionProfile", "vision_profile", optionList(collection("vision"), agent.vision_profile, "common.none"), "", "fieldHelp.agent.visionProfile")}
+      ${selectField("fields.llmProfile", "llm_profile", agentProfileOptionList("llm", agent.llm_profile, "common.none"), "required data-agent-profile-kind=\"llm\"", "fieldHelp.agent.llmProfile")}
+      ${selectField("fields.visionProfile", "vision_profile", agentProfileOptionList("vision", agent.vision_profile, "common.none"), 'data-agent-profile-kind="vision"', "fieldHelp.agent.visionProfile")}
       ${selectField(
         "fields.matrixProfile",
         "matrix_profile",
-        optionList(collection("matrix"), agent.matrix_profile, "common.none"),
-        "required",
+        agentProfileOptionList("matrix", agent.matrix_profile, "common.none"),
+        'required data-agent-profile-kind="matrix"',
         "fieldHelp.agent.matrixProfile"
       )}
       ${selectField(
@@ -2060,7 +2086,7 @@ function renderAgentPrimaryFields(agent) {
         "",
         "fieldHelp.agent.promptTemplate"
       )}
-      ${selectField("fields.mcpProfile", "mcp_profile", optionList(collection("mcp"), agent.mcp_profile, "common.none"), "", "fieldHelp.agent.mcpProfile")}
+      ${selectField("fields.mcpProfile", "mcp_profile", agentProfileOptionList("mcp", agent.mcp_profile, "common.none"), 'data-agent-profile-kind="mcp"', "fieldHelp.agent.mcpProfile")}
       ${textareaField("fields.skillBundles", "skill_bundles", asLines(agent.skill_bundles), "", "fieldHelp.agent.skillBundles")}
       ${textareaField("fields.externalPeers", "matrix_external_peers", asLines(matrix.external_peers), "required", "fieldHelp.agent.externalPeers")}
     </div>
@@ -2164,9 +2190,11 @@ function renderProfileManager(kind) {
 }
 
 function renderProfileForm(kind, item) {
+  const usage = renderProfileUsage(kind, itemId(item));
   if (kind === "vision") {
     const profile = applyLlmPresetToEmptyFields(item, llmFamily(item));
     return `
+      ${usage}
       <div class="form-grid">
         ${field("fields.id", "id", itemId(item), "required")}
         ${selectField("fields.provider", "provider_family", llmProviderOptions(profile.provider_family || "custom"), 'required data-llm-provider="true"', "fieldHelp.vision.provider")}
@@ -2193,6 +2221,7 @@ function renderProfileForm(kind, item) {
     const profile = applyLlmPresetToEmptyFields(item, llmFamily(item));
     const family = llmFamily(profile);
     return `
+      ${usage}
       <div class="form-grid">
         ${field("fields.id", "id", itemId(item), "required")}
         ${selectField("fields.provider", "provider_family", llmProviderOptions(family), 'required data-llm-provider="true"')}
@@ -2209,6 +2238,7 @@ function renderProfileForm(kind, item) {
   }
   if (kind === "matrix") {
     return `
+      ${usage}
       <div class="form-grid">
         ${field("fields.id", "id", itemId(item), "required", "fieldHelp.matrix.id")}
         ${field("fields.homeserver", "homeserver", item.homeserver || "", "required", "fieldHelp.matrix.homeserver")}
@@ -2224,6 +2254,7 @@ function renderProfileForm(kind, item) {
     `;
   }
   return `
+    ${usage}
     <div class="form-grid">
       ${field("fields.id", "id", itemId(item), "required")}
       ${field("fields.serverName", "server_name", item.server_name || "")}
@@ -2235,6 +2266,65 @@ function renderProfileForm(kind, item) {
     </div>
     <div class="button-row form-actions">${actionButton("profile-save", "actions.save", "primary")}</div>
   `;
+}
+
+function renderProfileUsage(kind, profileId) {
+  if (!["llm", "vision", "matrix", "mcp"].includes(kind)) return "";
+  const users = profileUsage(kind, profileId);
+  const statusKey = users.length ? "common.used" : "common.unused";
+  const fieldLabelKeys = {
+    llm_profile: "fields.llmProfile",
+    vision_profile: "fields.visionProfile",
+    matrix_profile: "fields.matrixProfile",
+    mcp_profile: "fields.mcpProfile"
+  };
+  const body = users.length
+    ? `<div class="profile-usage-list">${users
+        .map(
+          (user) =>
+            `<button type="button" class="profile-usage-agent" data-action="agent-edit:${escapeHtml(user.id)}">${escapeHtml(user.id)}<span>${escapeHtml(
+              t(fieldLabelKeys[user.fieldName] || "") || user.fieldName
+            )}</span></button>`
+        )
+        .join("")}</div>`
+    : `<p>${escapeHtml(t("profiles.noUsage"))}</p>`;
+  return `<section class="profile-usage">
+    <div class="profile-usage-header">
+      <strong>${escapeHtml(t("profiles.usedBy"))}</strong>
+      <span class="list-tag ${users.length ? "used" : "unused"}">${escapeHtml(t(statusKey))}${users.length ? ` ${users.length}` : ""}</span>
+    </div>
+    ${body}
+  </section>`;
+}
+
+function createProfileFromAgentSelect(select) {
+  const kind = select?.dataset?.agentProfileKind;
+  if (!["llm", "vision", "matrix", "mcp"].includes(kind)) return;
+  const agent = selectedAgent();
+  const previousValue = agent ? String(agent[`${kind}_profile`] || "") : "";
+  select.value = previousValue;
+  const form = select.form;
+  if (form && agent) {
+    try {
+      const draft = agentFromForm(form);
+      const index = state.config.agents.findIndex((item) => itemId(item) === state.selectedAgentId);
+      if (index >= 0) state.config.agents[index] = { ...state.config.agents[index], ...draft };
+    } catch (_error) {
+      // Incomplete agent drafts should not block quick profile creation.
+    }
+  }
+  const item = createProfileDraft(kind);
+  state.config.profiles[kind].unshift(item);
+  state[`selected${kind}Id`] = item.id;
+  state.selectedTab = kind;
+  try {
+    localStorage.setItem("zeroclaw.webui.selectedTab", kind);
+  } catch (_error) {
+    // Tab persistence is best effort.
+  }
+  clearToast();
+  render();
+  queueMicrotask(() => document.querySelector(`[data-form="${kind}"] [name="id"]`)?.select());
 }
 
 function renderMatrixBehaviorFields(item) {
@@ -3288,12 +3378,7 @@ async function handleAction(action) {
 
   for (const kind of ["llm", "vision", "matrix", "mcp"]) {
     if (action === `${kind}-new`) {
-      const item =
-        kind === "llm"
-          ? createLlmProfile(nextId(kind, collection(kind)))
-          : kind === "vision"
-            ? createVisionProfile(nextId("vision", collection(kind)))
-            : { id: nextId(kind, collection(kind)), _draft: true };
+      const item = createProfileDraft(kind);
       state.config.profiles[kind].unshift(item);
       state[`selected${kind}Id`] = item.id;
       render();
@@ -4093,6 +4178,10 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    if (event.target.matches("[data-agent-profile-kind]") && event.target.value === ADD_NEW_PROFILE_VALUE) {
+      createProfileFromAgentSelect(event.target);
+      return;
+    }
     if (event.target.matches("[data-log-tail]")) {
       state.logTail = Math.max(1, Math.min(2000, parseNumber(event.target.value, 200)));
       render();

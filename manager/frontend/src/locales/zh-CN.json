@@ -94,6 +94,10 @@
     "subtitle": "每个智能体可分配一个 MCP 网关或服务器配置。",
     "empty": "创建或选择一个 MCP 配置。"
   },
+  "profiles": {
+    "usedBy": "被使用于",
+    "noUsage": "没有智能体使用这个配置。"
+  },
   "prompts": {
     "title": "提示词模板",
     "subtitle": "编辑可复用的工作区提示词文件并复制模板。",
@@ -131,6 +135,7 @@
   },
   "actions": {
     "create": "创建",
+    "addNew": "新增",
     "duplicate": "复制",
     "edit": "编辑",
     "save": "保存",
@@ -356,6 +361,8 @@
     "loading": "加载中...",
     "empty": "这里还没有内容。",
     "none": "无",
+    "used": "使用中",
+    "unused": "未使用",
     "unknown": "未知",
     "unnamed": "未命名",
     "enabled": "已启用",
