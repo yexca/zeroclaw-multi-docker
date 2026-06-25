@@ -8,6 +8,8 @@ import json
 import os
 import sys
 import mimetypes
+import platform
+import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -77,6 +79,20 @@ def bytes_response(handler: BaseHTTPRequestHandler, status: int, body: bytes, co
         handler.send_header("Content-Disposition", f'attachment; filename="{filename}"')
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def open_local_folder(path: str) -> bool:
+    try:
+        system = platform.system().lower()
+        if system == "windows":
+            subprocess.Popen(["explorer.exe", path])
+        elif system == "darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
+        return True
+    except OSError:
+        return False
 
 
 def success(handler: BaseHTTPRequestHandler, status: int, data: object, meta: dict | None = None) -> None:
@@ -294,6 +310,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
         if len(segments) == 3 and segments[0] == "bundles" and segments[2] == "path" and method == "GET":
             success(self, 200, self.resolve_skill_path(config, segments[1]))
             return
+        if len(segments) == 3 and segments[0] == "bundles" and segments[2] == "open" and method == "POST":
+            success(self, 200, self.open_skill_path(config, segments[1]))
+            return
         if len(segments) == 3 and segments[0] == "bundles" and segments[2] == "skills":
             bundle = segments[1]
             if method == "GET":
@@ -322,6 +341,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 return
         if len(segments) == 5 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "path" and method == "GET":
             success(self, 200, self.resolve_skill_path(config, segments[1], segments[3]))
+            return
+        if len(segments) == 5 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "open" and method == "POST":
+            success(self, 200, self.open_skill_path(config, segments[1], segments[3]))
             return
         if len(segments) == 5 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "files":
             result = SKILLS.write_support_file(config, segments[1], segments[3], self.read_json())
@@ -379,6 +401,14 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 continue
             return Path(source) / relative
         return resolved if resolved.exists() else None
+
+    def open_skill_path(self, config: dict, bundle: str, skill: str | None = None) -> dict:
+        result = self.resolve_skill_path(config, bundle, skill)
+        target = result.get("host_path") or result.get("container_path") or ""
+        if not target:
+            raise ConfigError("path_unavailable", "No local path is available for this item.", result, 404)
+        opened = open_local_folder(str(target))
+        return {**result, "opened": opened}
 
     def write_support_file_upload(self, config: dict, bundle: str, skill: str) -> dict:
         payload = self.read_json()

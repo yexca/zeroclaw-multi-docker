@@ -1304,6 +1304,7 @@ function selectField(labelKey, name, optionsHtml, attrs = "", helpKey = "") {
 
 const ACTION_ICONS = {
   "actions.applyTemplate": "file-check",
+  "actions.archive": "archive",
   "actions.aiFill": "sparkles",
   "actions.cancel": "x",
   "actions.copyPath": "copy",
@@ -1315,6 +1316,7 @@ const ACTION_ICONS = {
   "actions.edit": "edit",
   "actions.export": "download",
   "actions.logs": "file-text",
+  "actions.openFolder": "folder-open",
   "actions.refreshStatus": "refresh",
   "actions.removeFile": "trash",
   "actions.restart": "rotate",
@@ -1335,6 +1337,7 @@ const ACTION_ICONS = {
 };
 
 const ICON_PATHS = {
+  archive: '<rect x="3" y="3" width="18" height="4" rx="1"></rect><path d="M5 7v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7"></path><path d="M10 12h4"></path>',
   "arrow-right-left": '<path d="M8 7h13"></path><path d="m18 4 3 3-3 3"></path><path d="M16 17H3"></path><path d="m6 14-3 3 3 3"></path>',
   "badge-check": '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.77 4 4 0 0 1 0 6.76 4 4 0 0 1-4.78 4.77 4 4 0 0 1-6.74 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"></path><path d="m9 12 2 2 4-4"></path>',
   check: '<path d="m5 12 4 4L19 6"></path>',
@@ -1347,6 +1350,7 @@ const ICON_PATHS = {
   "eye-off": '<path d="M10.7 5.1A10.9 10.9 0 0 1 12 5c7 0 10 7 10 7a13.2 13.2 0 0 1-2.2 3.3"></path><path d="M6.6 6.6C2.7 8.8 1 12 1 12s3 7 11 7a10.8 10.8 0 0 0 5.4-1.4"></path><path d="m2 2 20 20"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>',
   "file-check": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="m9 15 2 2 4-4"></path>',
   "file-text": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path>',
+  "folder-open": '<path d="M6 17h12a2 2 0 0 0 1.9-1.4l1.5-5A2 2 0 0 0 19.5 8H8.2a2 2 0 0 0-1.9 1.4L4 17V5a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1"></path>',
   play: '<path d="m6 3 14 9-14 9Z"></path>',
   plus: '<path d="M12 5v14"></path><path d="M5 12h14"></path>',
   refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"></path><path d="M3 21v-5h5"></path><path d="M3 12A9 9 0 0 1 18.5 5.8L21 8"></path><path d="M21 3v5h-5"></path>',
@@ -2252,6 +2256,7 @@ function renderSkillBundleSettings(bundle) {
           ${textareaField("fields.excludeSkills", "exclude", asLines(bundle.exclude), "", "fieldHelp.skills.excludeSkills")}
         </div>
         <div class="button-row form-actions">
+          ${actionButton(`skill-bundle-open-folder:${bundleId}`, "actions.openFolder", "secondary")}
           ${actionButton(`skill-bundle-copy-path:${bundleId}`, "actions.copyPath", "secondary")}
           ${actionButton("skill-bundle-save", "actions.save", "primary")}
         </div>
@@ -2268,6 +2273,7 @@ function renderSkillListAndEditor(bundle, doc) {
       <header class="section-header compact">
         <div><h3>${escapeHtml(t("skills.bundleSkills"))}</h3><p>${escapeHtml(t("skills.bundleSkillsHelp"))}</p></div>
         <div class="button-row">
+          ${actionButton(`skill-open-folder:${bundleId}:${state.selectedSkillName || ""}`, "actions.openFolder", "secondary", !selectedSkill())}
           ${actionButton(`skill-copy-path:${bundleId}:${state.selectedSkillName || ""}`, "actions.copyPath", "secondary", !selectedSkill())}
           ${actionButton("skill-refresh", "actions.refreshStatus")}
           ${actionButton("skill-new-toggle", "actions.create", "primary")}
@@ -3182,9 +3188,16 @@ async function handleAction(action) {
   if (action.startsWith("skill-bundle-copy-path:")) {
     return copySkillPath(action.slice("skill-bundle-copy-path:".length));
   }
+  if (action.startsWith("skill-bundle-open-folder:")) {
+    return openSkillFolder(action.slice("skill-bundle-open-folder:".length));
+  }
   if (action.startsWith("skill-copy-path:")) {
     const [, bundleId = "", skillName = ""] = action.match(/^skill-copy-path:([^:]*):(.*)$/) || [];
     return copySkillPath(bundleId, skillName);
+  }
+  if (action.startsWith("skill-open-folder:")) {
+    const [, bundleId = "", skillName = ""] = action.match(/^skill-open-folder:([^:]*):(.*)$/) || [];
+    return openSkillFolder(bundleId, skillName);
   }
   if (action === "skill-bundle-save") {
     let bundle;
@@ -3600,6 +3613,28 @@ async function copySkillPath(bundleId, skillName = "") {
     } catch (_error) {
       window.prompt(t("messages.copyPathPrompt"), path);
     }
+  } catch (error) {
+    showError(error.message || String(error));
+  } finally {
+    render();
+  }
+}
+
+async function openSkillFolder(bundleId, skillName = "") {
+  if (!bundleId) return;
+  const suffix = skillName ? `/skills/${encodeURIComponent(skillName)}/open` : "/open";
+  try {
+    const result = await api(`/api/skills/bundles/${encodeURIComponent(bundleId)}${suffix}`, { method: "POST", body: "{}" });
+    if (result.opened) {
+      showNotice(t("messages.folderOpenRequested"));
+      return;
+    }
+    const path = result.host_path || result.container_path || "";
+    if (path) {
+      window.prompt(t("messages.openFolderFallback"), path);
+      return;
+    }
+    window.alert(t("messages.pathUnavailable"));
   } catch (error) {
     showError(error.message || String(error));
   } finally {

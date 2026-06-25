@@ -190,7 +190,8 @@
     "upload": "Upload",
     "enable": "Enable",
     "download": "Download",
-    "copyPath": "Copy path"
+    "copyPath": "Copy path",
+    "openFolder": "Open folder"
   },
   "fields": {
     "id": "ID",
@@ -350,7 +351,9 @@
     "binaryFileSelected": "Binary file selected. Use Download to inspect it, or upload a replacement.",
     "pathCopied": "Path copied to clipboard.",
     "pathUnavailable": "No local path is available for this item.",
-    "copyPathPrompt": "Copy this path"
+    "copyPathPrompt": "Copy this path",
+    "folderOpenRequested": "Folder open requested.",
+    "openFolderFallback": "Open this folder path"
   },
   "confirm": {
     "deleteAgent": "Delete this agent? This cannot be undone.",
