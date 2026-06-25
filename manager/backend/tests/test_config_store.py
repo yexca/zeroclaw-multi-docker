@@ -265,6 +265,62 @@ class ConfigStoreTest(unittest.TestCase):
             "hello",
         )
 
+    def test_update_profile_rejects_running_referenced_agent(self) -> None:
+        self.store.set_agent_status_provider(lambda _config, agent: {"running": agent.get("id") == "agent1", "state": "running"})
+
+        with self.assertRaises(ConfigError) as context:
+            self.store.update_item("llm", "deepseek-text", {"id": "deepseek-text", "model": "updated"})
+
+        self.assertEqual(context.exception.code, "runtime_config_in_use")
+        self.assertEqual(context.exception.status, 409)
+        self.assertEqual(context.exception.details["agents"][0]["id"], "agent1")
+
+    def test_update_profile_allows_stopped_referenced_agent(self) -> None:
+        self.store.set_agent_status_provider(lambda _config, _agent: {"running": False, "state": "exited"})
+
+        result = self.store.update_item("llm", "deepseek-text", {"id": "deepseek-text", "model": "updated"})
+
+        self.assertEqual(result["model"], "updated")
+
+    def test_update_unused_profile_allows_running_other_agent(self) -> None:
+        self.store.update_full_config(
+            self.modular_payload(
+                {
+                    "profiles": {
+                        "llm": [
+                            {"id": "deepseek-text", "provider_family": "openai", "provider_alias": "main", "model": "gpt-4.1"},
+                            {"id": "unused", "provider_family": "openai", "provider_alias": "main", "model": "gpt-4.1"},
+                        ],
+                        "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                        "mcp": [],
+                    },
+                    "agents": [
+                        {
+                            "id": "agent1",
+                            "host_port": 42641,
+                            "llm_profile": "deepseek-text",
+                            "matrix_profile": "matrix",
+                            "matrix": {"user_id": "@agent1:matrix.example.com", "external_peers": ["@you:matrix.example.com"]},
+                        }
+                    ],
+                }
+            )
+        )
+        self.store.set_agent_status_provider(lambda _config, _agent: {"running": True, "state": "running"})
+
+        result = self.store.update_item("llm", "unused", {"id": "unused", "model": "updated"})
+
+        self.assertEqual(result["model"], "updated")
+
+    def test_apply_prompt_template_rejects_running_agent(self) -> None:
+        self.store.set_agent_status_provider(lambda _config, _agent: {"running": True, "state": "running"})
+
+        with self.assertRaises(ConfigError) as context:
+            self.store.apply_prompt_template("agent1", {"mode": "overwrite"})
+
+        self.assertEqual(context.exception.code, "runtime_workspace_in_use")
+        self.assertEqual(context.exception.status, 409)
+
     def test_agent_workspace_initialized_requires_written_files(self) -> None:
         self.store.update_full_config(
             self.modular_payload({
@@ -607,6 +663,16 @@ class DockerControllerTest(unittest.TestCase):
 
         self.assertFalse(matrix_dir.exists())
         self.assertIn("matrix_state_removed_from_local", result["actions"])
+
+    def test_sync_script_uses_staged_mirror_replace(self) -> None:
+        controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
+
+        script = controller.sync_script("to-runtime", "agent1")
+
+        self.assertIn("def mirror_tree", script)
+        self.assertIn("copy_tree(src, stage)", script)
+        self.assertIn("move_dir_contents(backup, dst)", script)
+        self.assertNotIn("copy_tree(local, volume)", script)
 
     def test_decode_docker_multiplexed_logs(self) -> None:
         frame = b"\x01\x00\x00\x00" + (6).to_bytes(4, "big") + b"hello\n"

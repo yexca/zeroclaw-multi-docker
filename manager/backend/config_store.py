@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yaml
 
@@ -191,6 +191,7 @@ class ConfigStore:
         self.config_path = config_path
         self.example_path = example_path
         self.generated_dir = generated_dir
+        self.agent_status_provider: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] | None = None
         try:
             from agent_renderer import AgentRenderer
             from config_validator import ConfigValidator
@@ -238,6 +239,7 @@ class ConfigStore:
         validation = self.validator.validate_config(normalized, check_ports=False)
         if validation["errors"]:
             raise ConfigError("validation_failed", "Configuration has validation errors.", validation, 422)
+        self.ensure_runtime_config_editable(self.load(), normalized)
         return self.save(normalized)
 
     def list_collection(self, kind: str) -> list[dict[str, Any]]:
@@ -261,6 +263,7 @@ class ConfigStore:
         item = self._validate_item_payload(payload)
         item.setdefault("id", identifier)
         config = self.load()
+        self.ensure_item_editable(config, kind, identifier, item)
         collection = self._get_collection(config, kind)
         index = self._find_index(collection, identifier)
         if index is None:
@@ -274,6 +277,7 @@ class ConfigStore:
 
     def delete_item(self, kind: str, identifier: str) -> dict[str, Any]:
         config = self.load()
+        self.ensure_item_editable(config, kind, identifier, None)
         collection = self._get_collection(config, kind)
         index = self._find_index(collection, identifier)
         if index is None:
@@ -425,10 +429,12 @@ class ConfigStore:
             mode = payload["mode"]
         config = self.load()
         agent = self.get_agent(identifier)
+        self.ensure_agents_stopped(config, [agent], "runtime_workspace_in_use")
         return self.renderer.initialize_workspace(config, agent, mode=mode)
 
     def rotate_matrix_device_id(self, identifier: str) -> dict[str, Any]:
         config = self.load()
+        self.ensure_item_editable(config, "agents", identifier, None)
         agents = config.get("agents") if isinstance(config.get("agents"), list) else []
         index = self._find_index(agents, identifier)
         if index is None:
@@ -446,6 +452,95 @@ class ConfigStore:
             "previous_device_id": previous_device_id,
             "device_id": matrix["device_id"],
         }
+
+    def set_agent_status_provider(self, provider: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] | None) -> None:
+        self.agent_status_provider = provider
+
+    def ensure_item_editable(self, config: dict[str, Any], kind: str, identifier: str, replacement: dict[str, Any] | None) -> None:
+        affected = self.affected_agents_for_item(config, kind, identifier, replacement)
+        self.ensure_agents_stopped(config, affected, "runtime_config_in_use")
+
+    def ensure_runtime_config_editable(self, previous: dict[str, Any], updated: dict[str, Any]) -> None:
+        affected: dict[str, dict[str, Any]] = {}
+        previous_agents = {str(item_id(agent) or ""): agent for agent in normalize_collection(previous.get("agents"))}
+        updated_agents = {str(item_id(agent) or ""): agent for agent in normalize_collection(updated.get("agents"))}
+        for identifier in sorted(set(previous_agents) | set(updated_agents)):
+            if not identifier:
+                continue
+            if previous_agents.get(identifier) != updated_agents.get(identifier):
+                agent = previous_agents.get(identifier) or updated_agents.get(identifier)
+                if agent:
+                    affected[identifier] = agent
+
+        for kind in PROFILE_COLLECTIONS:
+            previous_items = self.collection_by_id(previous, kind)
+            updated_items = self.collection_by_id(updated, kind)
+            for identifier in sorted(set(previous_items) | set(updated_items)):
+                if previous_items.get(identifier) != updated_items.get(identifier):
+                    for agent in self.agents_using_item(previous, kind, identifier) + self.agents_using_item(updated, kind, identifier):
+                        affected[str(item_id(agent) or "")] = agent
+
+        previous_prompts = self.collection_by_id(previous, "prompt_templates")
+        updated_prompts = self.collection_by_id(updated, "prompt_templates")
+        for identifier in sorted(set(previous_prompts) | set(updated_prompts)):
+            if previous_prompts.get(identifier) != updated_prompts.get(identifier):
+                for agent in self.agents_using_item(previous, "prompt_templates", identifier) + self.agents_using_item(updated, "prompt_templates", identifier):
+                    affected[str(item_id(agent) or "")] = agent
+
+        self.ensure_agents_stopped(previous, [agent for key, agent in affected.items() if key], "runtime_config_in_use")
+
+    def affected_agents_for_item(
+        self, config: dict[str, Any], kind: str, identifier: str, replacement: dict[str, Any] | None
+    ) -> list[dict[str, Any]]:
+        if kind == "agents":
+            agents = normalize_collection(config.get("agents"))
+            index = self._find_index(agents, identifier)
+            return [agents[index]] if index is not None else []
+        if kind in PROFILE_COLLECTIONS or kind == "prompt_templates":
+            affected = self.agents_using_item(config, kind, identifier)
+            replacement_id = item_id(replacement) if replacement else None
+            if replacement_id and replacement_id != identifier:
+                affected.extend(self.agents_using_item(config, kind, replacement_id))
+            return affected
+        return []
+
+    def agents_using_item(self, config: dict[str, Any], kind: str, identifier: str) -> list[dict[str, Any]]:
+        agents = normalize_collection(config.get("agents"))
+        key_by_kind = {
+            "llm": "llm_profile",
+            "vision": "vision_profile",
+            "matrix": "matrix_profile",
+            "mcp": "mcp_profile",
+            "prompt_templates": "prompt_template",
+        }
+        key = key_by_kind.get(kind)
+        if not key:
+            return []
+        return [agent for agent in agents if agent.get(key) == identifier]
+
+    def collection_by_id(self, config: dict[str, Any], kind: str) -> dict[str, dict[str, Any]]:
+        return {str(item_id(item) or ""): item for item in self._get_collection(config, kind) if item_id(item)}
+
+    def ensure_agents_stopped(self, config: dict[str, Any], agents: list[dict[str, Any]], code: str) -> None:
+        if not self.agent_status_provider:
+            return
+        seen: set[str] = set()
+        running: list[dict[str, Any]] = []
+        for agent in agents:
+            identifier = str(item_id(agent) or "")
+            if not identifier or identifier in seen:
+                continue
+            seen.add(identifier)
+            status = self.agent_status_provider(config, agent)
+            if bool(status.get("running")):
+                running.append({"id": identifier, "name": agent.get("name") or identifier, "state": status.get("state") or "running"})
+        if running:
+            raise ConfigError(
+                code,
+                "This configuration is used by a running agent. Stop the agent container before changing it.",
+                {"agents": running},
+                409,
+            )
 
     def agent_workspace_initialized(self, config: dict[str, Any], agent: dict[str, Any]) -> bool:
         workspace = self.renderer.workspace_dir(config, agent)

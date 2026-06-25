@@ -1211,6 +1211,7 @@ for target in targets:
 import os
 import shutil
 import stat
+import tempfile
 from pathlib import Path
 
 local = Path('/app/instances') / {safe_name!r}
@@ -1244,9 +1245,45 @@ def copy_tree(src, dst):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item, target)
 
+def move_dir_contents(src, dst):
+    dst.mkdir(parents=True, exist_ok=True)
+    for child in list(src.iterdir()):
+        shutil.move(str(child), str(dst / child.name))
+
+def mirror_tree(src, dst):
+    if not src.exists() or not src.is_dir():
+        raise RuntimeError(f'Sync source is missing or not a directory: {{src}}')
+    dst.mkdir(parents=True, exist_ok=True)
+    stage = Path(tempfile.mkdtemp(prefix='.zeroclaw-sync-stage.', dir=str(dst)))
+    backup = Path(tempfile.mkdtemp(prefix='.zeroclaw-sync-backup.', dir=str(dst)))
+    try:
+        copy_tree(src, stage)
+        for child in list(dst.iterdir()):
+            if child == stage or child == backup:
+                continue
+            shutil.move(str(child), str(backup / child.name))
+        move_dir_contents(stage, dst)
+    except Exception:
+        try:
+            for child in list(dst.iterdir()):
+                if child == stage or child == backup:
+                    continue
+                if child.is_dir() and not child.is_symlink():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+            move_dir_contents(backup, dst)
+        except Exception:
+            pass
+        raise
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage)
+        if backup.exists():
+            shutil.rmtree(backup)
+
 if {direction!r} == 'to-runtime':
-    volume.mkdir(parents=True, exist_ok=True)
-    copy_tree(local, volume)
+    mirror_tree(local, volume)
     if bootstrap.exists():
         target = volume / 'bootstrap'
         if target.exists():
@@ -1258,8 +1295,7 @@ if {direction!r} == 'to-runtime':
             shutil.rmtree(target)
         shutil.copytree(shared, target, symlinks=True)
 else:
-    local.mkdir(parents=True, exist_ok=True)
-    copy_tree(volume, local)
+    mirror_tree(volume, local)
     shared_copy = local / 'shared'
     if shared_copy.exists():
         shutil.rmtree(shared_copy)

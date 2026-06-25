@@ -46,6 +46,7 @@ def build_store() -> ConfigStore:
 
 STORE = build_store()
 DOCKER = build_controller_from_env(REPO_ROOT)
+STORE.set_agent_status_provider(lambda config, agent: DOCKER.status(config, agent))
 HISTORY = history_from_env(STORE.generated_dir)
 AI_FILLER = PromptTemplateAiFiller()
 SKILLS = SkillStore(REPO_ROOT)
