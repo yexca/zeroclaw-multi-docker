@@ -74,6 +74,7 @@ REQUIRED_ENV_KEYS = [
     "VISION_MAX_IMAGE_SIZE_MB",
     "VISION_MAX_IMAGE_TURNS",
     "ZEROCLAW_providers__models__custom__vision__api_key",
+    "RUNTIME_MAX_HISTORY_MESSAGES",
     "SKILLS_ALLOW_SCRIPTS",
     "SKILLS_OPEN_SKILLS_ENABLED",
     "SKILLS_REGISTRY_URL",
@@ -226,6 +227,7 @@ class AgentRenderer:
             "PACING_LOOP_DETECTION_MAX_REPEATS": env_value(pacing.get("loop_detection_max_repeats") or 3),
             "SHELL_TIMEOUT_SECS": env_value(runtime.get("shell_timeout_secs") or 300),
             "SHELL_TOOL_TIMEOUT_SECS": env_value(runtime.get("shell_tool_timeout_secs") or runtime.get("shell_timeout_secs") or 300),
+            "RUNTIME_MAX_HISTORY_MESSAGES": env_value(runtime.get("max_history_messages") or 80),
             "SKILLS_ALLOW_SCRIPTS": env_value(skills.get("allow_scripts", False)),
             "SKILLS_OPEN_SKILLS_ENABLED": env_value(skills.get("open_skills_enabled", False)),
             "SKILLS_REGISTRY_URL": env_value(skills.get("registry_url") or "https://github.com/zeroclaw-labs/zeroclaw-skills"),
@@ -432,6 +434,7 @@ skill_bundles = {toml_csv_array(env.get('AGENT_SKILL_BUNDLES', ''))}
 
 [runtime_profiles.daemon]
 shell_timeout_secs = {env.get('SHELL_TIMEOUT_SECS', '300')}
+max_history_messages = {env.get('RUNTIME_MAX_HISTORY_MESSAGES', '80')}
 
 [shell_tool]
 timeout_secs = {env.get('SHELL_TOOL_TIMEOUT_SECS', '300')}

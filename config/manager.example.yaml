@@ -68,6 +68,7 @@ pacing:
 runtime:
   shell_timeout_secs: 300
   shell_tool_timeout_secs: 300
+  max_history_messages: 80
 
 config_modules:
   llm_dir: config/llm

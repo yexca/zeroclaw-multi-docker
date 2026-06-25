@@ -208,7 +208,7 @@
     "timeout": "超时秒数",
     "apiKey": "API key",
     "temperature": "Temperature",
-    "maxTokens": "最大 tokens",
+    "maxTokens": "最大输出 tokens",
     "requiresOpenaiAuth": "使用 OpenAI 认证存储",
     "fallback": "备用提供商",
     "fallbackModels": "备用模型",

@@ -884,7 +884,18 @@ class AgentRendererTest(unittest.TestCase):
         self.assertEqual(env["MODEL_PROVIDER_MAX_TOKENS"], "4096")
         self.assertEqual(env["MODEL_PROVIDER_FALLBACK_MODELS"], '["deepseek-reasoner"]')
         self.assertEqual(env["MODEL_PROVIDER_EXTRA_HEADERS"], '{ "X-Test" = "yes" }')
+        self.assertEqual(env["RUNTIME_MAX_HISTORY_MESSAGES"], "80")
         self.assertEqual(env["MATRIX_USER_ID"], "@agent1:matrix.example.com")
+
+    def test_render_env_includes_runtime_max_history_messages_override(self) -> None:
+        config = copy_config(self.config)
+        config["runtime"] = {"max_history_messages": 12}
+
+        env = self.renderer.render_env(config, self.agent)
+
+        self.assertEqual(env["RUNTIME_MAX_HISTORY_MESSAGES"], "12")
+        preview = self.renderer.export_agent(config, self.agent, formats=["zeroclaw_config_preview"])["formats"]["zeroclaw_config_preview"]
+        self.assertIn("max_history_messages = 12", preview)
 
     def test_workspace_keep_and_merge_modes_do_not_silently_overwrite(self) -> None:
         first = self.renderer.initialize_workspace(self.config, self.agent, mode="overwrite")

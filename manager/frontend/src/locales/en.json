@@ -279,7 +279,7 @@
     "timeout": "Timeout seconds",
     "apiKey": "API key",
     "temperature": "Temperature",
-    "maxTokens": "Max tokens",
+    "maxTokens": "Max output tokens",
     "requiresOpenaiAuth": "Use OpenAI auth store",
     "fallback": "Fallback providers",
     "fallbackModels": "Fallback models",

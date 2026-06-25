@@ -149,6 +149,7 @@ VISION_PROVIDER_REF="${VISION_PROVIDER_FAMILY}.${VISION_PROVIDER_ALIAS}"
 VISION_TIMEOUT_SECS=$(first_nonempty "${VISION_TIMEOUT_SECS:-}" "120")
 SHELL_TIMEOUT_SECS=$(first_nonempty "${SHELL_TIMEOUT_SECS:-}" "300")
 SHELL_TOOL_TIMEOUT_SECS=$(first_nonempty "${SHELL_TOOL_TIMEOUT_SECS:-}" "$SHELL_TIMEOUT_SECS")
+RUNTIME_MAX_HISTORY_MESSAGES=$(first_nonempty "${RUNTIME_MAX_HISTORY_MESSAGES:-}" "80")
 SKILLS_PROMPT_INJECTION_MODE=$(first_nonempty "${SKILLS_PROMPT_INJECTION_MODE:-}" "full")
 
 validate_provider_segment "MODEL_PROVIDER_FAMILY" "$MODEL_PROVIDER_FAMILY"
@@ -161,6 +162,7 @@ if [ -n "$MODEL_PROVIDER_NUM_CTX" ]; then validate_unsigned_int "MODEL_PROVIDER_
 validate_unsigned_int "VISION_TIMEOUT_SECS" "$VISION_TIMEOUT_SECS"
 validate_unsigned_int "SHELL_TIMEOUT_SECS" "$SHELL_TIMEOUT_SECS"
 validate_unsigned_int "SHELL_TOOL_TIMEOUT_SECS" "$SHELL_TOOL_TIMEOUT_SECS"
+validate_unsigned_int "RUNTIME_MAX_HISTORY_MESSAGES" "$RUNTIME_MAX_HISTORY_MESSAGES"
 
 write_model_provider_block() {
   cat <<EOF
@@ -417,7 +419,7 @@ shell_timeout_secs = ${SHELL_TIMEOUT_SECS}
 max_delegation_depth = 3
 delegation_timeout_secs = 300
 agentic_timeout_secs = 900
-max_history_messages = 80
+max_history_messages = ${RUNTIME_MAX_HISTORY_MESSAGES}
 max_context_tokens = 120000
 parallel_tools = true
 tool_dispatcher = "auto"

@@ -15,7 +15,7 @@ Primary config is YAML. The manager reads `config/manager.yaml` locally, or
 - `defaults`: shared image and Matrix defaults.
 - `heartbeat`: built-in ZeroClaw heartbeat settings.
 - `pacing`: loop detection settings.
-- `runtime`: shell/tool timeout settings.
+- `runtime`: shell/tool timeout and conversation-history settings.
 - `profiles.llm`: reusable LLM provider profiles.
 - `profiles.vision`: reusable vision-capable LLM profiles.
 - `profiles.matrix`: reusable Matrix profiles.
@@ -132,6 +132,14 @@ runtime filesystem:
 `docker.volume_prefix` optionally customizes runtime volume names. The default
 prefix is `docker.project_name`.
 
+## Runtime Fields
+
+- `shell_timeout_secs`: default shell command timeout for agent runtime.
+- `shell_tool_timeout_secs`: shell tool timeout override. Defaults to
+  `shell_timeout_secs` when empty.
+- `max_history_messages`: maximum recent conversation messages retained in the
+  runtime profile. Default: `80`. Lower this for small-context local models.
+
 ## Prompt Template Fields
 
 `prompt_templates` entries define reusable workspace files:
@@ -179,7 +187,8 @@ minimal remote profile usually includes:
 
 Advanced fields supported by the manager include:
 
-- Shared ZeroClaw provider fields: `kind`, `temperature`, `max_tokens`,
+- Shared ZeroClaw provider fields: `kind`, `temperature`, `max_tokens`
+  (maximum output tokens),
   `requires_openai_auth`, `fallback`, `fallback_models`, `extra_headers`,
   `merge_system_into_user`, `provider_extra`, `pricing`, `native_tools`,
   `think`, `chat_template_kwargs`, and `tls_ca_cert_path`.
