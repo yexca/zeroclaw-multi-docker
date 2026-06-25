@@ -215,7 +215,8 @@
     "enable": "Enable",
     "download": "Download",
     "copyPath": "Copy path",
-    "openFolder": "Open folder"
+    "openFolder": "Open folder",
+    "testConnection": "Test connection"
   },
   "fields": {
     "id": "ID",
@@ -379,7 +380,8 @@
     "pathUnavailable": "No local path is available for this item.",
     "copyPathPrompt": "Copy this path",
     "folderOpenRequested": "Folder open requested.",
-    "openFolderFallback": "Open this folder path"
+    "openFolderFallback": "Open this folder path",
+    "llmTestPassed": "LLM profile reachable: {model} ({latency} ms)."
   },
   "dialog": {
     "alertTitle": "Notice",

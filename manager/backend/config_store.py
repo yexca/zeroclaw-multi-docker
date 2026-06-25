@@ -246,6 +246,14 @@ class ConfigStore:
         config = self.load()
         return copy.deepcopy(self._get_collection(config, kind))
 
+    def get_item(self, kind: str, identifier: str) -> dict[str, Any]:
+        config = self.load()
+        collection = self._get_collection(config, kind)
+        index = self._find_index(collection, identifier)
+        if index is None:
+            raise ConfigError("not_found", f"{kind} item was not found.", {"id": identifier}, 404)
+        return copy.deepcopy(collection[index])
+
     def create_item(self, kind: str, payload: Any) -> dict[str, Any]:
         item = self._validate_item_payload(payload)
         identifier = item_id(item)

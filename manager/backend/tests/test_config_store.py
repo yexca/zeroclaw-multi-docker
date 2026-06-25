@@ -3,6 +3,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 
 import yaml
 
@@ -20,6 +21,7 @@ from manager.backend.docker_controller import (
     decode_build_stream,
     decode_docker_log_stream,
 )
+from manager.backend.llm_tester import LlmProfileTester
 from manager.backend.observability import OperationHistory, normalize_agent_state, redact_lines
 from manager.backend.app import ManagerHandler
 
@@ -737,6 +739,66 @@ class ApiRoutingTest(unittest.TestCase):
         self.assertEqual(handler.parse_limit({"limit": ["0"]}, default=50, maximum=100), 1)
         self.assertEqual(handler.parse_limit({"limit": ["999"]}, default=50, maximum=100), 100)
         self.assertEqual(handler.parse_limit({"limit": ["bad"]}, default=50, maximum=100), 50)
+
+
+class LlmProfileTesterTest(unittest.TestCase):
+    def test_chat_completions_profile_posts_minimal_request(self) -> None:
+        seen = {}
+
+        class Response:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"choices":[{"message":{"content":"ok"}}]}'
+
+        def opener(request, timeout):
+            seen["url"] = request.full_url
+            seen["timeout"] = timeout
+            seen["body"] = request.data.decode("utf-8")
+            seen["auth"] = request.headers.get("Authorization")
+            return Response()
+
+        result = LlmProfileTester(opener).test_profile(
+            {
+                "id": "openai",
+                "provider_family": "openai",
+                "base_url": "https://api.example.com/v1",
+                "wire_api": "chat_completions",
+                "model": "gpt-test",
+                "api_key": "secret",
+                "timeout_secs": 120,
+            }
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["preview"], "ok")
+        self.assertEqual(seen["url"], "https://api.example.com/v1/chat/completions")
+        self.assertEqual(seen["timeout"], 30)
+        self.assertEqual(seen["auth"], "Bearer secret")
+        self.assertEqual(yaml.safe_load(seen["body"])["max_tokens"], 8)
+
+    def test_http_error_does_not_expose_api_key(self) -> None:
+        def opener(_request, _timeout):
+            raise HTTPError("https://api.example.com/v1/responses", 401, "Unauthorized", {}, None)
+
+        with self.assertRaises(ConfigError) as context:
+            LlmProfileTester(opener).test_profile(
+                {
+                    "id": "bad",
+                    "wire_api": "responses",
+                    "model": "gpt-test",
+                    "api_key": "secret-key",
+                }
+            )
+
+        self.assertEqual(context.exception.code, "llm_test_http_error")
+        self.assertNotIn("secret-key", str(context.exception.details))
 
 
 class PromptTemplateAiFillerTest(unittest.TestCase):

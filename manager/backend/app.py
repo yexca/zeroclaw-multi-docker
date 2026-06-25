@@ -18,12 +18,14 @@ try:
     from config_store import ConfigError, ConfigStore, redact, to_json
     from ai_fill import PromptTemplateAiFiller
     from docker_controller import DockerApiError, build_controller_from_env
+    from llm_tester import LlmProfileTester
     from observability import agent_identifier, enrich_status, history_from_env, redact_lines, redact_text, utc_now
     from skill_store import SkillStore
 except ModuleNotFoundError:  # pragma: no cover - package import path for tests
     from .config_store import ConfigError, ConfigStore, redact, to_json
     from .ai_fill import PromptTemplateAiFiller
     from .docker_controller import DockerApiError, build_controller_from_env
+    from .llm_tester import LlmProfileTester
     from .observability import agent_identifier, enrich_status, history_from_env, redact_lines, redact_text, utc_now
     from .skill_store import SkillStore
 
@@ -49,6 +51,7 @@ DOCKER = build_controller_from_env(REPO_ROOT)
 STORE.set_agent_status_provider(lambda config, agent: DOCKER.status(config, agent))
 HISTORY = history_from_env(STORE.generated_dir)
 AI_FILLER = PromptTemplateAiFiller()
+LLM_TESTER = LlmProfileTester()
 SKILLS = SkillStore(REPO_ROOT)
 
 
@@ -272,6 +275,15 @@ class ManagerHandler(BaseHTTPRequestHandler):
             return
 
         if len(segments) >= 3 and segments[:2] == ["api", "profiles"]:
+            if segments[2:] == ["llm", "test"] and method == "POST":
+                payload = self.read_json()
+                profile = payload.get("profile") if isinstance(payload, dict) and isinstance(payload.get("profile"), dict) else payload
+                success(self, 200, LLM_TESTER.test_profile(profile))
+                return
+            if len(segments) == 5 and segments[2] == "llm" and segments[4] == "test" and method == "POST":
+                profile = STORE.get_item("llm", segments[3])
+                success(self, 200, LLM_TESTER.test_profile(profile))
+                return
             self.route_collection(method, "profiles", segments[2:], query)
             return
 

@@ -1427,7 +1427,8 @@ const ACTION_ICONS = {
   "actions.adopt": "badge-check",
   "actions.ignore": "eye-off",
   "actions.migrate": "arrow-right-left",
-  "actions.clearDecision": "undo"
+  "actions.clearDecision": "undo",
+  "actions.testConnection": "plug-zap"
 };
 
 const ICON_PATHS = {
@@ -1446,6 +1447,7 @@ const ICON_PATHS = {
   "file-text": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path>',
   "folder-open": '<path d="M6 17h12a2 2 0 0 0 1.9-1.4l1.5-5A2 2 0 0 0 19.5 8H8.2a2 2 0 0 0-1.9 1.4L4 17V5a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1"></path>',
   play: '<path d="m6 3 14 9-14 9Z"></path>',
+  "plug-zap": '<path d="m13 2-2 6h5l-7 14 2-8H6l7-12Z"></path><path d="M22 12h-3"></path><path d="M5 12H2"></path><path d="M17 17l2 2"></path><path d="M5 5l2 2"></path>',
   plus: '<path d="M12 5v14"></path><path d="M5 12h14"></path>',
   refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"></path><path d="M3 21v-5h5"></path><path d="M3 12A9 9 0 0 1 18.5 5.8L21 8"></path><path d="M21 3v5h-5"></path>',
   rotate: '<path d="M21 12a9 9 0 1 1-2.6-6.4"></path><path d="M21 3v6h-6"></path>',
@@ -2233,7 +2235,10 @@ function renderProfileForm(kind, item) {
         ${passwordField("fields.apiKey", "api_key", profile.api_key || "")}
       </div>
       ${renderLlmAdvancedFields(profile)}
-      <div class="button-row form-actions">${actionButton("profile-save", "actions.save", "primary")}</div>
+      <div class="button-row form-actions">
+        ${actionButton("llm-test-profile", "actions.testConnection")}
+        ${actionButton("profile-save", "actions.save", "primary")}
+      </div>
     `;
   }
   if (kind === "matrix") {
@@ -3398,6 +3403,36 @@ async function handleAction(action) {
       await saveItem(kind, state[`selected${kind}Id`], item);
       state[`selected${kind}Id`] = itemId(item);
     }, "messages.saved");
+  }
+  if (action === "llm-test-profile") {
+    const form = document.querySelector('[data-form="llm"]');
+    let item;
+    try {
+      item = profileFromForm("llm", form);
+    } catch (error) {
+      if (error instanceof FormValidationError) return alertValidation(error);
+      throw error;
+    }
+    try {
+      setBusy(true);
+      clearToast();
+      const result = await api("/api/profiles/llm/test", {
+        method: "POST",
+        body: JSON.stringify({ profile: cleanPayload(item) })
+      });
+      showNotice(
+        t("messages.llmTestPassed")
+          .replace("{model}", result.model || item.model || "")
+          .replace("{latency}", String(result.latency_ms ?? 0))
+      );
+      return result;
+    } catch (error) {
+      showError(error.message || String(error));
+      return null;
+    } finally {
+      state.busy = false;
+      render();
+    }
   }
 
   if (action === "template-new") {
