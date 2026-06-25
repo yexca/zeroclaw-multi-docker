@@ -391,12 +391,14 @@ const state = {
   selectedSkillBundleId: "",
   selectedSkillName: "",
   selectedSkillFile: "",
+  selectedSupportType: "references",
   selectedSkillsView: "bundles",
   skillBundleSkills: {},
   skillDocuments: {},
   skillFileDraft: "",
   skillFilePathDraft: "references/notes.md",
   skillNewOpen: false,
+  supportFileDialog: null,
   selectedTemplateFile: "",
   pendingTemplateFileName: "",
   dashboard: null,
@@ -655,6 +657,7 @@ function fieldDisplayName(name) {
     url: t("fields.url"),
     support_file_type: t("fields.supportFileType"),
     support_file_name: t("fields.supportFileName"),
+    support_upload_file: t("fields.uploadFile"),
     template_file: t("fields.templateFile"),
     description: t("fields.description")
   };
@@ -1002,27 +1005,76 @@ function templateFileHelp(file) {
 
 function supportPathParts(path) {
   const text = String(path || "").replaceAll("\\", "/").replace(/^\/+/, "");
-  const [type = "references", ...rest] = text.split("/");
+  const fallbackType = SKILL_SUPPORT_DIRS.includes(state.selectedSupportType) ? state.selectedSupportType : "references";
+  const [type = fallbackType, ...rest] = text.split("/");
   return {
-    type: SKILL_SUPPORT_DIRS.includes(type) ? type : "references",
+    type: SKILL_SUPPORT_DIRS.includes(type) ? type : fallbackType,
     filename: rest.join("/") || ""
   };
 }
 
-function supportFilePathFromForm(data) {
-  const type = String(data.get("support_file_type") || "references").trim();
-  const filename = String(data.get("support_file_name") || "").trim().replaceAll("\\", "/").replace(/^\/+/, "");
-  if (!SKILL_SUPPORT_DIRS.includes(type)) {
+function supportFilePathFromParts(type, filename) {
+  const normalizedType = String(type || state.selectedSupportType || "references").trim();
+  const normalizedName = String(filename || "").trim().replaceAll("\\", "/").replace(/^\/+/, "");
+  if (!SKILL_SUPPORT_DIRS.includes(normalizedType)) {
     throw new FormValidationError(t("messages.requiredField").replace("{field}", fieldDisplayName("support_file_type")), "support_file_type");
   }
-  if (!filename || filename.includes("..") || filename.endsWith("/") || !filename.split("/").every(Boolean)) {
+  if (!normalizedName || normalizedName.includes("..") || normalizedName.endsWith("/") || !normalizedName.split("/").every(Boolean)) {
     throw new FormValidationError(t("messages.invalidSupportFileName"), "support_file_name");
   }
-  const leaf = filename.split("/").pop() || "";
+  const leaf = normalizedName.split("/").pop() || "";
   if (!leaf.includes(".") || leaf.startsWith(".") || leaf.endsWith(".")) {
     throw new FormValidationError(t("messages.invalidSupportFileName"), "support_file_name");
   }
-  return `${type}/${filename}`;
+  return `${normalizedType}/${normalizedName}`;
+}
+
+function supportFilePathFromForm(data) {
+  const type = String(data.get("support_file_type") || state.selectedSupportType || "references").trim();
+  const filename = String(data.get("support_file_name") || "").trim();
+  return supportFilePathFromParts(type, filename);
+}
+
+function supportFileName(filePath) {
+  const parts = supportPathParts(filePath);
+  return parts.filename;
+}
+
+function supportFilesForType(doc, type = state.selectedSupportType) {
+  return (doc?.files || []).filter((file) => supportPathParts(file).type === type);
+}
+
+function defaultSupportFileName(type = state.selectedSupportType) {
+  if (type === "scripts") return "script.sh";
+  if (type === "assets") return "asset.txt";
+  return "notes.md";
+}
+
+function defaultSupportPath(type = state.selectedSupportType) {
+  return `${type}/${defaultSupportFileName(type)}`;
+}
+
+function isLikelyTextFile(name) {
+  return /\.(md|txt|json|yaml|yml|toml|csv|tsv|xml|html|css|js|mjs|ts|tsx|jsx|py|sh|bash|zsh|ps1|bat|cmd|rs|go|java|c|cc|cpp|h|hpp|sql|ini|env|log)$/i.test(name);
+}
+
+function supportTypeLabel(type) {
+  return t(`skills.supportTypes.${type}`);
+}
+
+function ensureTextUploadFile(file) {
+  if (!file || typeof file.name !== "string" || !file.name) {
+    throw new FormValidationError(t("messages.requiredField").replace("{field}", fieldDisplayName("support_upload_file")), "support_upload_file");
+  }
+  if (file.type && file.type.startsWith("text/")) return;
+  if (isLikelyTextFile(file.name)) return;
+  throw new FormValidationError(t("messages.binaryUploadNotSupported"), "support_upload_file");
+}
+
+function supportFileUploadPathFromForm(data, file) {
+  const type = String(data.get("support_file_type") || state.selectedSupportType || "references").trim();
+  const name = String(data.get("support_file_name") || file?.name || "").trim();
+  return supportFilePathFromParts(type, name);
 }
 
 function renderTemplateAddFileControl() {
@@ -1125,6 +1177,21 @@ function openAiFillDialog() {
   state.aiFillInstruction = state.aiFillInstruction || DEFAULT_AI_FILL_INSTRUCTION;
   state.aiFillReferenceEnabled = false;
   state.aiFillReferenceFiles = [];
+  render();
+}
+
+function openSupportFileDialog(kind) {
+  state.supportFileDialog = {
+    kind,
+    type: state.selectedSupportType,
+    name: kind === "upload" ? "" : defaultSupportFileName(state.selectedSupportType),
+    content: ""
+  };
+  render();
+}
+
+function closeSupportFileDialog() {
+  state.supportFileDialog = null;
   render();
 }
 
@@ -1267,6 +1334,7 @@ const ACTION_ICONS = {
   "actions.stop": "square",
   "actions.syncFromRuntime": "download",
   "actions.syncToRuntime": "upload",
+  "actions.upload": "upload",
   "actions.validate": "circle-check",
   "actions.advancedActions": "chevron-up",
   "actions.collapseAdvancedActions": "chevron-down",
@@ -1335,6 +1403,7 @@ function render() {
     </div>
     ${renderAiFillDialog()}
     ${renderResourceDeleteDialog()}
+    ${renderSupportFileDialog()}
   `;
 }
 
@@ -1552,6 +1621,49 @@ function renderResourceDeleteDialog() {
         <footer class="button-row modal-actions">
           ${actionButton("resource-delete-cancel", "actions.cancel")}
           ${actionButton("resource-delete-confirm", "actions.delete", "danger", !matches)}
+        </footer>
+      </section>
+    </div>`;
+}
+
+function renderSupportFileDialog() {
+  const dialog = state.supportFileDialog;
+  if (!dialog) return "";
+  const isUpload = dialog.kind === "upload";
+  const titleKey = isUpload ? "skills.uploadFileTitle" : "skills.addTextFileTitle";
+  const subtitleKey = isUpload ? "skills.uploadFileSubtitle" : "skills.addTextFileSubtitle";
+  return `
+    <div class="modal-backdrop" role="presentation">
+      <section class="modal-panel support-file-dialog" role="dialog" aria-modal="true" aria-labelledby="support-file-dialog-title">
+        <header class="modal-header">
+          <div>
+            <h3 id="support-file-dialog-title">${escapeHtml(t(titleKey))}</h3>
+            <p>${escapeHtml(t(subtitleKey))}</p>
+          </div>
+          ${actionButton("support-file-dialog-close", "actions.cancel", "secondary")}
+        </header>
+        <form class="form-grid" data-form="support-file-dialog">
+          ${selectField(
+            "fields.supportFileType",
+            "support_file_type",
+            SKILL_SUPPORT_DIRS.map((type) => `<option value="${type}" ${dialog.type === type ? "selected" : ""}>${escapeHtml(supportTypeLabel(type))}</option>`).join(""),
+            "",
+            "fieldHelp.skills.supportFileType"
+          )}
+          ${field("fields.supportFileName", "support_file_name", dialog.name || "", "", "fieldHelp.skills.supportFileName")}
+          ${
+            isUpload
+              ? `<label class="field field-wide">
+                  <span>${escapeHtml(t("fields.uploadFile"))}</span>
+                  <input type="file" name="support_upload_file" />
+                </label>
+                <div class="notice muted field-wide">${escapeHtml(t("skills.uploadTextOnlyNotice"))}</div>`
+              : textareaField("fields.supportFileContent", "support_file_content", dialog.content || "", "", "fieldHelp.skills.supportFileContent")
+          }
+        </form>
+        <footer class="button-row modal-actions">
+          ${actionButton("support-file-dialog-close", "actions.cancel", "secondary")}
+          ${actionButton(isUpload ? "support-file-upload-save" : "support-file-create-save", isUpload ? "actions.upload" : "actions.create", "primary")}
         </footer>
       </section>
     </div>`;
@@ -2109,8 +2221,7 @@ function renderSkillLibraryView() {
       ${renderListPanel(
         "skill-bundles",
         skillBundles(),
-        state.selectedSkillBundleId,
-        `${actionButton("skill-bundle-new", "actions.create", "primary")}`
+        state.selectedSkillBundleId
       )}
       <div class="form-panel">
         ${bundle ? renderSkillListAndEditor(bundle, doc) : renderEmptyEditor("skills.empty")}
@@ -2231,7 +2342,13 @@ function renderSkillSupportView() {
   if (!bundle) return renderEmptyEditor("skills.empty");
   if (!skill) return renderEmptyEditor("skills.noSkills");
   if (!doc) return renderEmptyEditor("skills.loadingSkill");
-  const path = state.skillFilePathDraft || state.selectedSkillFile || "references/notes.md";
+  if (!SKILL_SUPPORT_DIRS.includes(state.selectedSupportType)) state.selectedSupportType = "references";
+  const files = supportFilesForType(doc);
+  const selectedFile = files.includes(state.selectedSkillFile) ? state.selectedSkillFile : files[0] || "";
+  if (selectedFile && selectedFile !== state.selectedSkillFile && !state.busy) {
+    queueMicrotask(() => loadSkillSupportFile(selectedFile));
+  }
+  const path = state.skillFilePathDraft || selectedFile || defaultSupportPath();
   const pathParts = supportPathParts(path);
   return `
     <section class="form-section">
@@ -2244,16 +2361,43 @@ function renderSkillSupportView() {
       <form class="form-panel" data-form="skill-doc">
         <div class="support-file-layout">
           ${renderSupportSkillTree()}
-          <div class="form-grid">
-            ${selectField(
-              "fields.supportFileType",
-              "support_file_type",
-              SKILL_SUPPORT_DIRS.map((type) => `<option value="${type}" ${pathParts.type === type ? "selected" : ""}>${escapeHtml(type)}</option>`).join(""),
-              "",
-              "fieldHelp.skills.supportFileType"
-            )}
-            ${field("fields.supportFileName", "support_file_name", pathParts.filename || "notes.md", "", "fieldHelp.skills.supportFileName")}
-            ${textareaField("fields.supportFileContent", "support_file_content", state.skillFileDraft || "", "", "fieldHelp.skills.supportFileContent")}
+          <div class="support-file-workspace">
+            ${renderSupportTypeTabs(doc)}
+            ${state.selectedSupportType === "scripts" ? renderScriptsGate() : ""}
+            <div class="support-file-toolbar">
+              <div>
+                <strong>${escapeHtml(supportTypeLabel(state.selectedSupportType))}</strong>
+                <span>${escapeHtml(t("skills.supportTypeHelp"))}</span>
+              </div>
+              <div class="button-row">
+                ${actionButton("support-file-create-open", "actions.addFile", "secondary")}
+                ${actionButton("support-file-upload-open", "actions.upload", "secondary")}
+              </div>
+            </div>
+            <div class="support-file-browser">
+              <aside class="support-file-list compact-list">
+                ${
+                  files.length
+                    ? files
+                        .map(
+                          (file) => `
+                            <button
+                              type="button"
+                              class="list-item ${file === selectedFile ? "active" : ""}"
+                              data-skill-file="${escapeHtml(file)}"
+                            ><span class="list-item-main">${escapeHtml(supportFileName(file))}</span></button>
+                          `
+                        )
+                        .join("")
+                    : `<div class="empty-state compact">${escapeHtml(t("skills.noSupportFiles"))}</div>`
+                }
+              </aside>
+              <div class="form-grid">
+                <input type="hidden" name="support_file_type" value="${escapeHtml(pathParts.type)}" />
+                ${field("fields.supportFileName", "support_file_name", pathParts.filename || defaultSupportFileName(), "", "fieldHelp.skills.supportFileName")}
+                ${textareaField("fields.supportFileContent", "support_file_content", state.skillFileDraft || "", "", "fieldHelp.skills.supportFileContent")}
+              </div>
+            </div>
           </div>
         </div>
         <div class="button-row form-actions">
@@ -2263,6 +2407,37 @@ function renderSkillSupportView() {
         </div>
       </form>
     </section>
+  `;
+}
+
+function renderSupportTypeTabs(doc) {
+  return `
+    <div class="sub-tabs compact" role="tablist" aria-label="${escapeHtml(t("skills.supportTypeTabsLabel"))}">
+      ${SKILL_SUPPORT_DIRS.map((type) => {
+        const count = supportFilesForType(doc, type).length;
+        return `
+          <button
+            type="button"
+            class="sub-tab ${state.selectedSupportType === type ? "active" : ""}"
+            data-support-type="${escapeHtml(type)}"
+            role="tab"
+            aria-selected="${state.selectedSupportType === type ? "true" : "false"}"
+          >${escapeHtml(supportTypeLabel(type))} <span class="tab-count">${count}</span></button>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderScriptsGate() {
+  if (state.config.skills?.allow_scripts === true) {
+    return `<div class="notice success compact-notice">${escapeHtml(t("skills.scriptsEnabledNotice"))}</div>`;
+  }
+  return `
+    <div class="notice danger compact-notice">
+      <span>${escapeHtml(t("skills.scriptsDisabledNotice"))}</span>
+      ${actionButton("skills-enable-scripts", "actions.enable", "primary")}
+    </div>
   `;
 }
 
@@ -3078,6 +3253,21 @@ async function handleAction(action) {
   if (action === "skill-file-load") return loadSkillSupportFile();
   if (action === "skill-file-save") return saveSkillSupportFile();
   if (action === "skill-file-delete") return deleteSkillSupportFile();
+  if (action === "support-file-create-open") {
+    openSupportFileDialog("create");
+    return;
+  }
+  if (action === "support-file-upload-open") {
+    openSupportFileDialog("upload");
+    return;
+  }
+  if (action === "support-file-dialog-close") {
+    closeSupportFileDialog();
+    return;
+  }
+  if (action === "support-file-create-save") return createSupportTextFileFromDialog();
+  if (action === "support-file-upload-save") return uploadSupportTextFileFromDialog();
+  if (action === "skills-enable-scripts") return enableSkillScripts();
   if (action === "config-export") {
     return runAction(async () => {
       state.exportResult = await api("/api/export", { method: "POST", body: JSON.stringify({ filename: "resolved.yaml" }) });
@@ -3296,15 +3486,68 @@ async function saveSkillSupportFile() {
     throw error;
   }
   const content = String(data.get("support_file_content") || "");
+  return writeSupportFile(filePath, content);
+}
+
+async function createSupportTextFileFromDialog() {
+  const form = document.querySelector('[data-form="support-file-dialog"]');
+  if (!form) return;
+  const data = new FormData(form);
+  let filePath;
+  try {
+    filePath = supportFilePathFromForm(data);
+  } catch (error) {
+    if (error instanceof FormValidationError) return alertValidation(error);
+    throw error;
+  }
+  const content = String(data.get("support_file_content") || "");
+  return writeSupportFile(filePath, content, { closeDialog: true });
+}
+
+async function uploadSupportTextFileFromDialog() {
+  const form = document.querySelector('[data-form="support-file-dialog"]');
+  if (!form) return;
+  const data = new FormData(form);
+  const file = data.get("support_upload_file");
+  try {
+    ensureTextUploadFile(file);
+  } catch (error) {
+    if (error instanceof FormValidationError) return alertValidation(error);
+    throw error;
+  }
+  let filePath;
+  try {
+    filePath = supportFileUploadPathFromForm(data, file);
+  } catch (error) {
+    if (error instanceof FormValidationError) return alertValidation(error);
+    throw error;
+  }
+  const content = await file.text();
+  return writeSupportFile(filePath, content, { closeDialog: true });
+}
+
+async function writeSupportFile(filePath, content, { closeDialog = false } = {}) {
   return runAction(async () => {
     await api(`/api/skills/bundles/${encodeURIComponent(state.selectedSkillBundleId)}/skills/${encodeURIComponent(state.selectedSkillName)}/files`, {
       method: "POST",
       body: JSON.stringify({ file_path: filePath, content })
     });
+    const parts = supportPathParts(filePath);
+    state.selectedSupportType = parts.type;
     state.selectedSkillFile = filePath;
     state.skillFilePathDraft = filePath;
     state.skillFileDraft = content;
+    if (closeDialog) state.supportFileDialog = null;
     await refreshSkillDocument();
+  }, "messages.saved");
+}
+
+async function enableSkillScripts() {
+  return runAction(async () => {
+    await api("/api/config", {
+      method: "PUT",
+      body: JSON.stringify({ ...state.config, skills: { ...(state.config.skills || {}), allow_scripts: true } })
+    });
   }, "messages.saved");
 }
 
@@ -3364,6 +3607,16 @@ function bindEvents() {
       return;
     }
 
+    const supportType = event.target.closest("[data-support-type]")?.dataset.supportType;
+    if (supportType) {
+      state.selectedSupportType = SKILL_SUPPORT_DIRS.includes(supportType) ? supportType : "references";
+      state.selectedSkillFile = "";
+      state.skillFileDraft = "";
+      state.skillFilePathDraft = defaultSupportPath(state.selectedSupportType);
+      render();
+      return;
+    }
+
     for (const kind of ["agents", "llm", "vision", "matrix", "mcp", "templates"]) {
       const selector = event.target.closest(`[data-select-${kind}]`);
       if (selector) {
@@ -3403,7 +3656,7 @@ function bindEvents() {
       state.selectedSkillName = skillName;
       state.selectedSkillFile = "";
       state.skillFileDraft = "";
-      state.skillFilePathDraft = "references/notes.md";
+      state.skillFilePathDraft = defaultSupportPath();
       await refreshSkillDocument(state.selectedSkillBundleId, skillName);
       render();
       return;
@@ -3418,7 +3671,7 @@ function bindEvents() {
       state.selectedSkillName = skillName;
       state.selectedSkillFile = "";
       state.skillFileDraft = "";
-      state.skillFilePathDraft = "references/notes.md";
+      state.skillFilePathDraft = defaultSupportPath();
       if (!state.skillBundleSkills[bundleId]) await refreshSkillList(bundleId);
       await refreshSkillDocument(bundleId, skillName);
       render();
@@ -3497,6 +3750,14 @@ function bindEvents() {
         // Keep partially typed paths in the form; validation runs on load/save/delete.
       }
       render();
+    }
+    if (event.target.matches('[name="support_upload_file"]')) {
+      const file = event.target.files?.[0];
+      const form = event.target.form;
+      const nameInput = form?.elements?.support_file_name;
+      if (file?.name && nameInput && !String(nameInput.value || "").trim()) {
+        nameInput.value = file.name;
+      }
     }
   });
 }

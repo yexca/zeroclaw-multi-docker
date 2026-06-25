@@ -350,6 +350,29 @@ textarea {
   color: var(--color-primary);
 }
 
+.sub-tabs.compact {
+  margin-bottom: 10px;
+}
+
+.tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--color-surface-soft);
+  color: var(--color-subtle);
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.sub-tab.active .tab-count {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
 .agent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -795,6 +818,56 @@ dd {
   min-width: 0;
   border-right: 1px solid var(--color-border-soft);
   padding-right: 12px;
+}
+
+.support-file-workspace {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.support-file-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border-soft);
+  padding-bottom: 10px;
+}
+
+.support-file-toolbar div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.support-file-toolbar strong {
+  color: var(--color-text);
+}
+
+.support-file-toolbar span {
+  color: var(--color-subtle);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.support-file-browser {
+  display: grid;
+  grid-template-columns: minmax(160px, 230px) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.support-file-list.compact-list {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.compact-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
 }
 
 .skill-tree-bundle {
@@ -1392,6 +1465,7 @@ dd {
   .split,
   .split.wide,
   .support-file-layout,
+  .support-file-browser,
   .export-grid,
   .resource-summary,
   .resource-row {
@@ -1416,6 +1490,10 @@ dd {
     border-right: 0;
     border-bottom: 1px solid var(--color-border-soft);
     padding: 0 0 12px;
+  }
+
+  .support-file-toolbar {
+    display: grid;
   }
 }
 

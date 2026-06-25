@@ -104,7 +104,21 @@
     "bundleSettingsHelp": "Configure the selected bundle alias, directory, and optional include/exclude filters.",
     "supportFilesHelp": "Choose a bundle and skill, then edit files under references/, scripts/, or assets/.",
     "noSupportFiles": "No support files yet.",
-    "loadingSkill": "Loading selected skill."
+    "loadingSkill": "Loading selected skill.",
+    "supportTypeTabsLabel": "Support file type",
+    "supportTypeHelp": "Files shown here live under the selected support directory for the current skill.",
+    "supportTypes": {
+      "references": "references",
+      "scripts": "scripts",
+      "assets": "assets"
+    },
+    "scriptsDisabledNotice": "Script files are disabled globally. Enabling this affects every skill bundle and agent runtime.",
+    "scriptsEnabledNotice": "Script files are enabled globally.",
+    "addTextFileTitle": "Add text support file",
+    "addTextFileSubtitle": "Create a UTF-8 text file under the selected support directory.",
+    "uploadFileTitle": "Upload support file",
+    "uploadFileSubtitle": "Upload a local text file into the selected support directory.",
+    "uploadTextOnlyNotice": "This upload path currently stores UTF-8 text files. Binary asset upload needs a backend endpoint and will be added separately."
   },
   "prompts": {
     "title": "Prompt Templates",
@@ -170,9 +184,11 @@
     "adopt": "Mark as reviewed",
     "ignore": "Ignore this resource",
     "migrate": "Migrate volume data",
-    "clearDecision": "Clear local decision"
-    ,"archive": "Archive"
-    ,"load": "Load"
+    "clearDecision": "Clear local decision",
+    "archive": "Archive",
+    "load": "Load",
+    "upload": "Upload",
+    "enable": "Enable"
   },
   "fields": {
     "id": "ID",
@@ -292,7 +308,9 @@
     "proactiveTimezone": "Timezone",
     "proactiveChannel": "Matrix channel",
     "proactiveAgentUrl": "Gateway URL override",
-    "proactivePrompt": "Proactive prompt"
+    "proactivePrompt": "Proactive prompt",
+    "uploadFile": "Upload file",
+    "supportUploadFile": "Upload file"
   },
   "templateApply": {
     "keep": "Keep existing files",
@@ -326,7 +344,8 @@
     "invalidUrlField": "{field} must be a valid http/https URL. Please check it again.",
     "requiredField": "{field} is required. Please fill it in.",
     "invalidTemplateFile": "Template file names must be plain workspace file names using letters, numbers, dot, underscore, or hyphen.",
-    "invalidSupportFileName": "Support file names must include a file extension and stay inside the selected support file type."
+    "invalidSupportFileName": "Support file names must include a file extension and stay inside the selected support file type.",
+    "binaryUploadNotSupported": "Binary upload is not wired yet. Choose a text file for now."
   },
   "confirm": {
     "deleteAgent": "Delete this agent? This cannot be undone.",
