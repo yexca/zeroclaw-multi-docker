@@ -1,27 +1,32 @@
 # ZeroClaw Dockyard
 
-Local WebUI manager for creating and operating multiple ZeroClaw Matrix agents
-from one Docker Compose project.
+ZeroClaw Dockyard is a local WebUI for creating and operating multiple
+ZeroClaw Matrix agents from one Docker Compose project.
 
-The manager is the only default entrypoint. A plain `docker compose up -d`
-starts the WebUI and Docker socket proxy; agent containers are created,
-configured, started, stopped, and deleted by the WebUI through the Docker API.
-
-The manager image builds the frontend inside Docker and serves the generated
-static files from the Python backend. The WebUI loads configuration first and
-refreshes Docker-backed dashboard status in the background.
+Start Dockyard, open the WebUI, then create agents, reusable profiles, prompt
+templates, and runtime settings without editing YAML by hand.
 
 Chinese documentation is available in [README.zh-cn.md](README.zh-cn.md).
 
-## What Is Included
+## What You Get
 
-- `docker-compose.yml`: WebUI manager and Docker socket proxy.
-- `config/manager.example.yaml`: structured manager configuration.
-- `config/secrets.example.yaml`: local plaintext secrets template.
-- `manager/`: WebUI backend and frontend.
-- `bootstrap/render-config.sh`: rendered into manager-created agent containers.
-- `manager/backend/prompt_templates/`: starter workspace prompt files.
-- `docs/`: operator, reference, architecture, and development docs.
+- A local manager WebUI at `http://127.0.0.1:7652`.
+- A Docker socket proxy so the manager does not mount
+  `/var/run/docker.sock` directly.
+- WebUI editors for agents, LLM profiles, Vision LLM profiles, Matrix
+  profiles, MCP profiles, skills, and prompt templates.
+- Dashboard controls for starting, stopping, restarting, validating, and
+  inspecting agents.
+- Per-agent workspaces and generated runtime configuration.
+
+Compose starts only the manager and socket proxy. Agent containers are created
+later from the WebUI.
+
+## Requirements
+
+- Docker Desktop or Docker Engine with Docker Compose.
+- Local browser access to `127.0.0.1:7652`.
+- PowerShell, if you are running the commands below on Windows.
 
 ## Start
 
@@ -29,36 +34,74 @@ Chinese documentation is available in [README.zh-cn.md](README.zh-cn.md).
 docker compose up -d
 ```
 
-Open `http://127.0.0.1:7652`.
+Open:
 
-Create and edit manager configuration from the WebUI. Saved local config and
-secret files are ignored by Git.
+```text
+http://127.0.0.1:7652
+```
 
-By default Compose uses the published `yexca/zeroclaw-dockyard:v0.1.0`
-manager image. To build the manager from this source tree instead, run:
+By default Compose uses the published manager image:
+
+```text
+yexca/zeroclaw-dockyard:v0.1.0
+```
+
+To build the manager from this source tree instead:
 
 ```powershell
 docker compose up -d --build
 ```
 
-The manager binds to `127.0.0.1` and reaches Docker through
-`docker-socket-proxy`. The manager container does not mount
-`/var/run/docker.sock` directly.
+## Create Agents
 
-## Configure Agents
+In the WebUI:
 
-Use the WebUI to edit:
+1. Open **Profiles** and create the LLM, Vision, Matrix, or MCP profiles you
+   need.
+2. Open **Agents** and create an agent with a host port and profile
+   assignments.
+3. Choose or edit a prompt template.
+4. Save and validate the agent.
+5. Start the agent from the Dashboard or agent actions.
 
-- LLM profiles
-- Matrix profiles
-- MCP profiles
-- prompt templates
-- per-agent ports, identities, model/profile assignments, and secrets
+The Dashboard shows runtime status, logs, config hashes, rebuild status, and
+recent manager operations.
 
-The dashboard shows runtime status, logs, config hashes, rebuild status, and
-operation history.
+## Local Data
 
-Detailed docs:
+Dockyard keeps local runtime data in the project directory:
+
+- `config/manager.yaml`: saved manager configuration.
+- `config/secrets.yaml`: local secrets, when used.
+- `config/generated/`: generated previews and exports.
+- `instances/`: per-agent workspace and runtime files.
+- `shared/`: shared skill bundles and support files.
+
+These files are local operator state. The included `.gitignore` is configured
+so normal local configuration, secrets, generated files, and agent instances
+stay out of Git.
+
+## Default Agent Image
+
+Manager-created agents use:
+
+```env
+ZEROCLAW_IMAGE=ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
+```
+
+You can override the image with the `ZEROCLAW_IMAGE` environment variable,
+manager configuration, or per-agent settings in the WebUI.
+
+## Stop
+
+```powershell
+docker compose down
+```
+
+This stops the manager and socket proxy. Manager-created agent containers are
+controlled from the WebUI.
+
+## Documentation
 
 - [Documentation index](docs/README.md)
 - [Quickstart](docs/getting-started/quickstart.md)
@@ -67,50 +110,4 @@ Detailed docs:
 - [API reference](docs/reference/api.md)
 - [Architecture](docs/concepts/architecture.md)
 - [Docker socket proxy security](docs/concepts/docker-socket-proxy-security.md)
-
-## Image
-
-Manager-created agents use:
-
-```env
-ZEROCLAW_IMAGE=ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian
-```
-
-Override it with the `ZEROCLAW_IMAGE` environment variable,
-`config/manager.yaml`, or per-agent config.
-
-## Keep Secrets Out Of Git
-
-Do not commit:
-
-- `.env`
-- `config/manager.yaml`
-- `config/secrets.yaml`
-- `config/manager.local.yaml`
-- `config/secrets.local.yaml`
-- `config/generated/*`
-- `instances/*`
-
-The included `.gitignore` covers these paths.
-
-## Tests And Release Checks
-
-Run the full local release check:
-
-```powershell
-.\tools\release-checks.ps1
-```
-
-Individual checks:
-
-```powershell
-docker compose config --quiet
-python -m unittest discover manager/backend/tests
-node manager/frontend/tests/ui-foundation.test.mjs
-```
-
-The Docker image build runs the frontend build in a `node:22-alpine` stage:
-
-```powershell
-docker build -t yexca/zeroclaw-dockyard:test ./manager
-```
+- [Release build notes](docs/development/release-build.md)
