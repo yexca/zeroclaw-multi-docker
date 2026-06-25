@@ -1306,6 +1306,7 @@ const ACTION_ICONS = {
   "actions.applyTemplate": "file-check",
   "actions.aiFill": "sparkles",
   "actions.cancel": "x",
+  "actions.copyPath": "copy",
   "actions.create": "plus",
   "actions.delete": "trash",
   "actions.downloadLogs": "download",
@@ -2166,7 +2167,7 @@ function renderSkillsViewTabs() {
 }
 
 function renderSelectedSkillsView() {
-  if (!SKILLS_VIEWS.includes(state.selectedSkillsView)) state.selectedSkillsView = "library";
+  if (!SKILLS_VIEWS.includes(state.selectedSkillsView)) state.selectedSkillsView = "bundles";
   if (state.selectedSkillsView === "bundles") return renderSkillBundlesView();
   if (state.selectedSkillsView === "support") return renderSkillSupportView();
   if (state.selectedSkillsView === "runtime") return renderSkillRuntimeSettingsView();
@@ -2250,7 +2251,10 @@ function renderSkillBundleSettings(bundle) {
           ${textareaField("fields.includeSkills", "include", asLines(bundle.include), "", "fieldHelp.skills.includeSkills")}
           ${textareaField("fields.excludeSkills", "exclude", asLines(bundle.exclude), "", "fieldHelp.skills.excludeSkills")}
         </div>
-        <div class="button-row form-actions">${actionButton("skill-bundle-save", "actions.save", "primary")}</div>
+        <div class="button-row form-actions">
+          ${actionButton(`skill-bundle-copy-path:${bundleId}`, "actions.copyPath", "secondary")}
+          ${actionButton("skill-bundle-save", "actions.save", "primary")}
+        </div>
       </section>
     </form>
   `;
@@ -2264,6 +2268,7 @@ function renderSkillListAndEditor(bundle, doc) {
       <header class="section-header compact">
         <div><h3>${escapeHtml(t("skills.bundleSkills"))}</h3><p>${escapeHtml(t("skills.bundleSkillsHelp"))}</p></div>
         <div class="button-row">
+          ${actionButton(`skill-copy-path:${bundleId}:${state.selectedSkillName || ""}`, "actions.copyPath", "secondary", !selectedSkill())}
           ${actionButton("skill-refresh", "actions.refreshStatus")}
           ${actionButton("skill-new-toggle", "actions.create", "primary")}
         </div>
@@ -3174,6 +3179,13 @@ async function handleAction(action) {
     render();
     return;
   }
+  if (action.startsWith("skill-bundle-copy-path:")) {
+    return copySkillPath(action.slice("skill-bundle-copy-path:".length));
+  }
+  if (action.startsWith("skill-copy-path:")) {
+    const [, bundleId = "", skillName = ""] = action.match(/^skill-copy-path:([^:]*):(.*)$/) || [];
+    return copySkillPath(bundleId, skillName);
+  }
   if (action === "skill-bundle-save") {
     let bundle;
     try {
@@ -3570,6 +3582,29 @@ async function enableSkillScripts() {
       body: JSON.stringify({ ...state.config, skills: { ...(state.config.skills || {}), allow_scripts: true } })
     });
   }, "messages.saved");
+}
+
+async function copySkillPath(bundleId, skillName = "") {
+  if (!bundleId) return;
+  const suffix = skillName ? `/skills/${encodeURIComponent(skillName)}/path` : "/path";
+  try {
+    const result = await api(`/api/skills/bundles/${encodeURIComponent(bundleId)}${suffix}`);
+    const path = result.host_path || result.container_path || "";
+    if (!path) {
+      window.alert(t("messages.pathUnavailable"));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(path);
+      showNotice(t("messages.pathCopied"));
+    } catch (_error) {
+      window.prompt(t("messages.copyPathPrompt"), path);
+    }
+  } catch (error) {
+    showError(error.message || String(error));
+  } finally {
+    render();
+  }
 }
 
 async function deleteSkillSupportFile() {

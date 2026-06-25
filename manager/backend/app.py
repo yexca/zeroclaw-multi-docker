@@ -27,7 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover - package import path for tests
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = APP_ROOT.parent
+REPO_ROOT = APP_ROOT if (APP_ROOT / "shared").exists() else APP_ROOT.parent
 FRONTEND_DIR = Path(os.getenv("MANAGER_FRONTEND_DIR", str(APP_ROOT / "frontend"))).resolve()
 
 
@@ -291,6 +291,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
             if method == "DELETE":
                 success(self, 200, STORE.delete_item("skill_bundles", bundle))
                 return
+        if len(segments) == 3 and segments[0] == "bundles" and segments[2] == "path" and method == "GET":
+            success(self, 200, self.resolve_skill_path(config, segments[1]))
+            return
         if len(segments) == 3 and segments[0] == "bundles" and segments[2] == "skills":
             bundle = segments[1]
             if method == "GET":
@@ -317,6 +320,9 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 HISTORY.append("skill-delete", result=result)
                 success(self, 200, result)
                 return
+        if len(segments) == 5 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "path" and method == "GET":
+            success(self, 200, self.resolve_skill_path(config, segments[1], segments[3]))
+            return
         if len(segments) == 5 and segments[0] == "bundles" and segments[2] == "skills" and segments[4] == "files":
             result = SKILLS.write_support_file(config, segments[1], segments[3], self.read_json())
             HISTORY.append("skill-file-write", result=result)
@@ -349,6 +355,30 @@ class ManagerHandler(BaseHTTPRequestHandler):
                 bytes_response(self, 200, body, content_type, filename=Path(str(info["file_path"])).name)
                 return
         error_response(self, 405, "method_not_allowed", "Unsupported skills operation.", {"method": method})
+
+    def resolve_skill_path(self, config: dict, bundle: str, skill: str | None = None) -> dict:
+        container_path = SKILLS.skill_dir(config, bundle, skill) if skill else SKILLS.bundle_dir(config, bundle)
+        host_path = self.host_path_for_container_path(container_path)
+        return {
+            "bundle": bundle,
+            "skill": skill or "",
+            "container_path": str(container_path),
+            "host_path": str(host_path) if host_path else "",
+            "exists": container_path.exists(),
+            "host_path_resolved": host_path is not None,
+        }
+
+    def host_path_for_container_path(self, container_path: Path) -> Path | None:
+        resolved = container_path.resolve()
+        mounts = DOCKER.manager_mount_sources()
+        for destination, source in sorted(mounts.items(), key=lambda item: len(item[0]), reverse=True):
+            dest_path = Path(destination).resolve()
+            try:
+                relative = resolved.relative_to(dest_path)
+            except ValueError:
+                continue
+            return Path(source) / relative
+        return resolved if resolved.exists() else None
 
     def write_support_file_upload(self, config: dict, bundle: str, skill: str) -> dict:
         payload = self.read_json()

@@ -189,7 +189,8 @@
     "load": "Load",
     "upload": "Upload",
     "enable": "Enable",
-    "download": "Download"
+    "download": "Download",
+    "copyPath": "Copy path"
   },
   "fields": {
     "id": "ID",
@@ -346,7 +347,10 @@
     "requiredField": "{field} is required. Please fill it in.",
     "invalidTemplateFile": "Template file names must be plain workspace file names using letters, numbers, dot, underscore, or hyphen.",
     "invalidSupportFileName": "Support file names must include a file extension and stay inside the selected support file type.",
-    "binaryFileSelected": "Binary file selected. Use Download to inspect it, or upload a replacement."
+    "binaryFileSelected": "Binary file selected. Use Download to inspect it, or upload a replacement.",
+    "pathCopied": "Path copied to clipboard.",
+    "pathUnavailable": "No local path is available for this item.",
+    "copyPathPrompt": "Copy this path"
   },
   "confirm": {
     "deleteAgent": "Delete this agent? This cannot be undone.",
