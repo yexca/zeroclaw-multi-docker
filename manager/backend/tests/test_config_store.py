@@ -131,6 +131,7 @@ class ConfigStoreTest(unittest.TestCase):
     def test_rotate_matrix_device_id_updates_agent_override(self) -> None:
         self.store.update_full_config(
             {
+                "paths": {"instances_dir": str(Path(self.temp_dir.name) / "instances")},
                 "profiles": {
                     "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
                     "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token", "device_id": "PROFILE_DEVICE"}],
@@ -270,6 +271,7 @@ class ConfigStoreTest(unittest.TestCase):
     def test_export_redacts_secrets_by_default(self) -> None:
         self.store.update_full_config(
             {
+                "paths": {"instances_dir": str(Path(self.temp_dir.name) / "instances")},
                 "profiles": {
                     "llm": [{"id": "remote", "provider_family": "openai", "provider_alias": "main", "model": "gpt", "api_key": "secret-key"}],
                     "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "matrix-token"}],
