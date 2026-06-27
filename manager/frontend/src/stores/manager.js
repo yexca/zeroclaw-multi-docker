@@ -169,6 +169,14 @@ export const useManagerStore = defineStore("manager", {
       await this.loadConfig();
       this.setNotice(`${kind.toUpperCase()} profile ${id} deleted.`);
     },
+    async testLlmProfile(profile) {
+      const result = await api("/api/profiles/llm/test", {
+        method: "POST",
+        body: { profile }
+      });
+      this.setNotice(`LLM test passed in ${result.latency_ms ?? 0}ms.`);
+      return result;
+    },
     async saveTemplate(template) {
       const id = itemId(template);
       const exists = this.templates.some((item) => itemId(item) === id);
