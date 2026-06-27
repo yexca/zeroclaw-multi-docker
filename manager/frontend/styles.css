@@ -502,6 +502,15 @@ textarea:focus {
   border-color: var(--primary);
 }
 
+.form-field--invalid input,
+.form-field--invalid select,
+.form-field--invalid textarea,
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
 .json-editor textarea,
 .code-block {
   min-height: 260px;

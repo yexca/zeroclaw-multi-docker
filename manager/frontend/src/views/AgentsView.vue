@@ -17,17 +17,17 @@
 
       <UiCard :title="t('agents.details')" :description="draft?._draft ? t('agents.unsaved') : t('agents.detailsHelp')">
         <form v-if="draft" class="form-grid" @submit.prevent="save">
-          <FormField v-model="draft.id" :label="t('agents.agentId')" />
-          <FormField v-model="draft.host_port" :label="t('fields.hostPort')" type="number" />
-          <FormField v-model="draft.llm_profile" :label="t('fields.llmProfile')" :options="profileOptions('llm')" />
-          <FormField v-model="draft.vision_profile" :label="t('fields.visionProfile')" :options="profileOptions('vision', true)" />
-          <FormField v-model="draft.matrix_profile" :label="t('fields.matrixProfile')" :options="profileOptions('matrix')" />
-          <FormField v-model="draft.mcp_profile" :label="t('fields.mcpProfile')" :options="profileOptions('mcp', true)" />
-          <FormField v-model="draft.prompt_template" :label="t('fields.promptTemplate')" :options="templateOptions" />
+          <FormField v-model="draft.id" :label="t('agents.agentId')" :error="formErrors.id" required />
+          <FormField v-model="draft.host_port" :label="t('fields.hostPort')" type="number" min="1" max="65535" :error="formErrors.host_port" required />
+          <FormField v-model="draft.llm_profile" :label="t('fields.llmProfile')" :options="profileOptions('llm')" :error="formErrors.llm_profile" required />
+          <FormField v-model="draft.vision_profile" :label="t('fields.visionProfile')" :options="profileOptions('vision', true)" :error="formErrors.vision_profile" />
+          <FormField v-model="draft.matrix_profile" :label="t('fields.matrixProfile')" :options="profileOptions('matrix')" :error="formErrors.matrix_profile" required />
+          <FormField v-model="draft.mcp_profile" :label="t('fields.mcpProfile')" :options="profileOptions('mcp', true)" :error="formErrors.mcp_profile" />
+          <FormField v-model="draft.prompt_template" :label="t('fields.promptTemplate')" :options="templateOptions" :error="formErrors.prompt_template" />
           <FormField v-model="imagePreset" :label="t('fields.imagePreset')" :options="imageOptions" wide />
-          <FormField v-model="draft.image" :label="t('fields.dockerImage')" wide />
+          <FormField v-model="draft.image" :label="t('fields.dockerImage')" :error="formErrors.image" wide required />
           <FormField v-model="externalPeers" :label="t('fields.externalPeers')" textarea wide />
-          <FormField v-model="skillBundles" :label="t('fields.skillBundles')" textarea wide />
+          <FormField v-model="skillBundles" :label="t('fields.skillBundles')" :error="formErrors.skill_bundles" textarea wide />
           <details class="advanced-disclosure form-field--wide">
             <summary>{{ t("fields.advanced") }}</summary>
             <div class="form-grid nested-form">
@@ -37,7 +37,7 @@
               </label>
               <FormField v-model="draft.template_apply_mode" :label="t('fields.templateApplyMode')" :options="templateModeOptions" />
               <FormField v-model="draft.storage_driver" :label="t('fields.storageDriver')" :options="storageOptions" />
-              <FormField v-model="draft.container_name" :label="t('fields.containerName')" />
+              <FormField v-model="draft.container_name" :label="t('fields.containerName')" :error="formErrors.container_name" />
               <FormField v-model="envOverrides" :label="t('fields.environment')" textarea wide />
             </div>
           </details>
@@ -51,11 +51,11 @@
               <FormField v-model="proactive.target" :label="t('fields.proactiveTarget')" />
               <FormField v-model="proactive.channel" :label="t('fields.proactiveChannel')" />
               <FormField v-model="proactive.timezone" :label="t('fields.proactiveTimezone')" />
-              <FormField v-model="proactive.quiet_hours" :label="t('fields.proactiveQuietHours')" />
-              <FormField v-model="proactive.random_min_minutes" :label="t('fields.proactiveRandomMinMinutes')" type="number" />
-              <FormField v-model="proactive.random_max_minutes" :label="t('fields.proactiveRandomMaxMinutes')" type="number" />
-              <FormField v-model="proactive.poll_seconds" :label="t('fields.proactivePollSeconds')" type="number" />
-              <FormField v-model="proactive.agent_url" :label="t('fields.proactiveAgentUrl')" />
+              <FormField v-model="proactive.quiet_hours" :label="t('fields.proactiveQuietHours')" :error="formErrors.proactive_quiet_hours" />
+              <FormField v-model="proactive.random_min_minutes" :label="t('fields.proactiveRandomMinMinutes')" type="number" min="1" :error="formErrors.proactive_random_min_minutes" />
+              <FormField v-model="proactive.random_max_minutes" :label="t('fields.proactiveRandomMaxMinutes')" type="number" min="1" :error="formErrors.proactive_random_max_minutes" />
+              <FormField v-model="proactive.poll_seconds" :label="t('fields.proactivePollSeconds')" type="number" min="30" :error="formErrors.proactive_poll_seconds" />
+              <FormField v-model="proactive.agent_url" :label="t('fields.proactiveAgentUrl')" :error="formErrors.proactive_agent_url" />
               <FormField v-model="proactive.prompt" :label="t('agents.wakePrompt')" textarea wide />
             </div>
           </details>
@@ -67,6 +67,7 @@
             <UiButton v-if="!draft._draft" variant="danger" @click="resetMatrix"><RefreshCcw />{{ t("actions.resetMatrixState") }}</UiButton>
             <UiButton v-if="!draft._draft" variant="danger" @click="remove"><Trash2 />{{ t("actions.delete") }}</UiButton>
           </div>
+          <p v-if="formMessage" class="field-error form-field--wide">{{ formMessage }}</p>
         </form>
         <p v-else class="empty-text">{{ t("agents.empty") }}</p>
       </UiCard>
@@ -143,6 +144,7 @@ import UiCard from "../components/UiCard.vue";
 import { useDialog } from "../composables/useDialog.js";
 import { useI18n } from "../composables/useI18n.js";
 import { clone, itemId } from "../lib/api.js";
+import { firstError, validateHttpUrl, validateId, validateIntegerRange, validateRequired, valueExists } from "../lib/validation.js";
 import { useManagerStore } from "../stores/manager.js";
 
 const store = useManagerStore();
@@ -157,6 +159,8 @@ const runtimeLogs = ref(null);
 const runtimeConfig = ref(null);
 const runtimeEnv = ref(null);
 const runtimeResult = ref(null);
+const formErrors = ref({});
+const formMessage = ref("");
 const applyTemplateMode = ref("keep");
 const logTail = ref(200);
 const DEFAULT_ZEROCLAW_IMAGE = "ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian";
@@ -259,6 +263,8 @@ function profileOptions(kind, optional = false) {
 function selectAgent(agent) {
   selectedId.value = itemId(agent);
   draft.value = clone(agent);
+  formErrors.value = {};
+  formMessage.value = "";
   runtimeStatus.value = null;
   runtimeLogs.value = null;
   runtimeConfig.value = null;
@@ -269,14 +275,112 @@ function selectAgent(agent) {
 function createAgent() {
   draft.value = { ...store.newAgent(), _draft: true };
   selectedId.value = "";
+  formErrors.value = {};
+  formMessage.value = "";
 }
 
 async function save() {
+  if (!validateAgentForm()) return;
   const payload = clone(draft.value);
   delete payload._draft;
-  await store.saveAgent(payload);
-  selectedId.value = payload.id;
-  draft.value = payload;
+  try {
+    await store.saveAgent(payload);
+    selectedId.value = payload.id;
+    draft.value = payload;
+    formErrors.value = {};
+    formMessage.value = "";
+  } catch (error) {
+    formMessage.value = error.message || String(error);
+  }
+}
+
+function validateAgentForm() {
+  const errors = {};
+  const labels = {
+    id: t("agents.agentId"),
+    host_port: t("fields.hostPort"),
+    llm_profile: t("fields.llmProfile"),
+    vision_profile: t("fields.visionProfile"),
+    matrix_profile: t("fields.matrixProfile"),
+    mcp_profile: t("fields.mcpProfile"),
+    prompt_template: t("fields.promptTemplate"),
+    skill_bundles: t("fields.skillBundles"),
+    image: t("fields.dockerImage"),
+    container_name: t("fields.containerName"),
+    proactive_quiet_hours: t("fields.proactiveQuietHours"),
+    proactive_random_min_minutes: t("fields.proactiveRandomMinMinutes"),
+    proactive_random_max_minutes: t("fields.proactiveRandomMaxMinutes"),
+    proactive_poll_seconds: t("fields.proactivePollSeconds"),
+    proactive_agent_url: t("fields.proactiveAgentUrl")
+  };
+  validateId(errors, "id", draft.value?.id, t("validation.invalidId", { field: labels.id }));
+  if (valueExists(store.agents, draft.value?.id, selectedId.value)) {
+    errors.id = t("validation.duplicateValue", { field: labels.id });
+  }
+  validateIntegerRange(errors, "host_port", draft.value?.host_port, {
+    min: 1,
+    max: 65535,
+    message: t("validation.invalidRange", { field: labels.host_port, min: 1, max: 65535 })
+  });
+  if (
+    Number.isInteger(Number(draft.value?.host_port)) &&
+    store.agents.some((agent) => itemId(agent) !== selectedId.value && Number(agent.host_port) === Number(draft.value.host_port))
+  ) {
+    errors.host_port = t("validation.duplicateValue", { field: labels.host_port });
+  }
+  validateRequired(errors, "llm_profile", draft.value?.llm_profile, t("messages.requiredField", { field: labels.llm_profile }));
+  validateRequired(errors, "matrix_profile", draft.value?.matrix_profile, t("messages.requiredField", { field: labels.matrix_profile }));
+  validateKnownProfile(errors, "llm_profile", "llm", labels.llm_profile);
+  validateKnownProfile(errors, "matrix_profile", "matrix", labels.matrix_profile);
+  validateKnownProfile(errors, "vision_profile", "vision", labels.vision_profile, true);
+  validateKnownProfile(errors, "mcp_profile", "mcp", labels.mcp_profile, true);
+  if (draft.value?.prompt_template && !store.templates.some((template) => itemId(template) === draft.value.prompt_template)) {
+    errors.prompt_template = t("validation.unknownReference", { field: labels.prompt_template });
+  }
+  const knownBundles = new Set(store.skillBundles.map((bundle) => itemId(bundle)));
+  const missingBundles = (draft.value?.skill_bundles || []).filter((bundle) => !knownBundles.has(bundle));
+  if (missingBundles.length) errors.skill_bundles = t("validation.unknownReference", { field: labels.skill_bundles });
+  validateRequired(errors, "image", draft.value?.image, t("messages.requiredField", { field: labels.image }));
+  if (draft.value?.container_name) validateId(errors, "container_name", draft.value.container_name, t("validation.invalidId", { field: labels.container_name }));
+
+  const proactiveDraft = draft.value?.proactive || {};
+  if (proactiveDraft.enabled) {
+    validateIntegerRange(errors, "proactive_random_min_minutes", proactiveDraft.random_min_minutes, {
+      min: 1,
+      message: t("messages.invalidMinNumberField", { field: labels.proactive_random_min_minutes, min: 1 })
+    });
+    validateIntegerRange(errors, "proactive_random_max_minutes", proactiveDraft.random_max_minutes, {
+      min: 1,
+      message: t("messages.invalidMinNumberField", { field: labels.proactive_random_max_minutes, min: 1 })
+    });
+    validateIntegerRange(errors, "proactive_poll_seconds", proactiveDraft.poll_seconds, {
+      min: 30,
+      message: t("messages.invalidMinNumberField", { field: labels.proactive_poll_seconds, min: 30 })
+    });
+    if (Number(proactiveDraft.random_max_minutes) < Number(proactiveDraft.random_min_minutes)) {
+      errors.proactive_random_max_minutes = t("messages.invalidMinNumberField", {
+        field: labels.proactive_random_max_minutes,
+        min: proactiveDraft.random_min_minutes
+      });
+    }
+    if (proactiveDraft.quiet_hours && !/^(?:[01]?\d|2[0-3])-(?:[01]?\d|2[0-3])$/.test(String(proactiveDraft.quiet_hours).trim())) {
+      errors.proactive_quiet_hours = t("validation.invalidQuietHours", { field: labels.proactive_quiet_hours });
+    }
+    validateHttpUrl(errors, "proactive_agent_url", proactiveDraft.agent_url, t("messages.invalidUrlField", { field: labels.proactive_agent_url }));
+  }
+
+  formErrors.value = errors;
+  formMessage.value = firstError(errors) ? t("validation.fixFields") : "";
+  return !formMessage.value;
+}
+
+function validateKnownProfile(errors, key, kind, label, optional = false) {
+  const value = draft.value?.[key];
+  if (optional && !value) return;
+  if (!value || errors[key]) return;
+  if (!(store.profiles[kind] || []).some((profile) => itemId(profile) === value)) {
+    errors[key] = t("validation.unknownReference", { field: label });
+  }
 }
 
 async function remove() {

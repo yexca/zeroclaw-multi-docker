@@ -39,14 +39,15 @@
           </button>
         </div>
         <form v-if="bundleDraft" class="form-grid bundle-form" @submit.prevent="saveBundle">
-          <FormField v-model="bundleDraft.id" :label="t('fields.id')" />
-          <FormField v-model="bundleDraft.directory" :label="t('fields.directory')" />
+          <FormField v-model="bundleDraft.id" :label="t('fields.id')" :error="bundleErrors.id" required />
+          <FormField v-model="bundleDraft.directory" :label="t('fields.directory')" :error="bundleErrors.directory" required />
           <FormField v-model="bundleInclude" :label="t('fields.includeSkills')" textarea wide />
           <FormField v-model="bundleExclude" :label="t('fields.excludeSkills')" textarea wide />
           <div class="button-row form-field--wide">
             <UiButton variant="primary" type="submit"><Save />{{ t("skills.saveBundle") }}</UiButton>
             <UiButton v-if="!bundleDraft._draft" variant="danger" @click="deleteBundle"><Trash2 />{{ t("actions.delete") }}</UiButton>
           </div>
+          <p v-if="bundleMessage" class="field-error form-field--wide">{{ bundleMessage }}</p>
         </form>
       </UiCard>
     </div>
@@ -65,7 +66,7 @@
             <p v-if="!skillsList.length" class="empty-text">{{ t("skills.noSkillsLoaded") }}</p>
           </div>
           <form v-if="skillDraft" class="form-grid" @submit.prevent="saveSkillDoc">
-            <FormField v-model="skillDraft.name" :label="t('fields.name')" />
+            <FormField v-model="skillDraft.name" :label="t('fields.name')" :error="skillErrors.name" required />
             <FormField v-model="skillDraft.description" :label="t('fields.description')" />
             <FormField v-model="skillDraft.category" :label="t('fields.category')" />
             <FormField v-model="skillTags" :label="t('fields.tags')" />
@@ -74,6 +75,7 @@
               <UiButton variant="primary" type="submit"><Save />{{ t("skills.saveSkill") }}</UiButton>
               <UiButton v-if="!skillDraft._draft" variant="danger" @click="deleteSkillDoc"><Trash2 />{{ t("actions.archive") }}</UiButton>
             </div>
+            <p v-if="skillMessage" class="field-error form-field--wide">{{ skillMessage }}</p>
           </form>
           <p v-else class="empty-text">{{ t("skills.emptySkill") }}</p>
         </div>
@@ -103,13 +105,14 @@
             </div>
           </aside>
           <form class="form-grid" @submit.prevent="saveSupportFile">
-            <FormField v-model="supportFilePath" :label="t('fields.supportFilePath')" wide />
+            <FormField v-model="supportFilePath" :label="t('fields.supportFilePath')" :error="supportErrors.path" wide required />
             <FormField v-model="supportFileContent" :label="t('fields.supportFileContent')" textarea wide />
             <div class="button-row form-field--wide">
               <UiButton variant="primary" type="submit"><Save />{{ t("skills.saveFile") }}</UiButton>
               <UiButton type="button" @click="newSupportFile"><Plus />{{ t("skills.newTextFile") }}</UiButton>
               <UiButton v-if="supportFilePath" type="button" variant="danger" @click="deleteSupportFile"><Trash2 />{{ t("actions.delete") }}</UiButton>
             </div>
+            <p v-if="supportMessage" class="field-error form-field--wide">{{ supportMessage }}</p>
             <div class="form-field form-field--wide">
               <span>{{ t("fields.uploadFile") }}</span>
               <input type="file" @change="uploadSupportFile" />
@@ -131,7 +134,15 @@ import UiButton from "../components/UiButton.vue";
 import UiCard from "../components/UiCard.vue";
 import { useDialog } from "../composables/useDialog.js";
 import { useI18n } from "../composables/useI18n.js";
-import { clone } from "../lib/api.js";
+import { clone, itemId } from "../lib/api.js";
+import {
+  firstError,
+  validateRelativeDirectory,
+  validateRequired,
+  validateSkillBundleId,
+  validateSupportPath,
+  valueExists
+} from "../lib/validation.js";
 import { useManagerStore } from "../stores/manager.js";
 
 const store = useManagerStore();
@@ -155,6 +166,12 @@ const supportTypes = ["references", "scripts", "assets"];
 const supportType = ref("references");
 const supportFilePath = ref("");
 const supportFileContent = ref("");
+const bundleErrors = ref({});
+const bundleMessage = ref("");
+const skillErrors = ref({});
+const skillMessage = ref("");
+const supportErrors = ref({});
+const supportMessage = ref("");
 
 const bundleInclude = computed({
   get: () => (bundleDraft.value?.include || []).join("\n"),
@@ -206,6 +223,12 @@ function selectBundle(bundle) {
   skillDraft.value = null;
   supportFilePath.value = "";
   supportFileContent.value = "";
+  bundleErrors.value = {};
+  bundleMessage.value = "";
+  skillErrors.value = {};
+  skillMessage.value = "";
+  supportErrors.value = {};
+  supportMessage.value = "";
   loadSkills();
 }
 
@@ -213,14 +236,36 @@ function newBundle() {
   const next = bundles.value.length + 1;
   selectedBundleId.value = "";
   bundleDraft.value = { id: `bundle-${next}`, directory: `shared/skills/bundle-${next}`, include: [], exclude: [], _draft: true };
+  bundleErrors.value = {};
+  bundleMessage.value = "";
 }
 
 async function saveBundle() {
+  if (!validateBundleForm()) return;
   const payload = clone(bundleDraft.value);
   delete payload._draft;
-  await store.saveSkillBundle(payload);
-  selectedBundleId.value = payload.id;
-  bundleDraft.value = payload;
+  try {
+    await store.saveSkillBundle(payload);
+    selectedBundleId.value = payload.id;
+    bundleDraft.value = payload;
+    bundleErrors.value = {};
+    bundleMessage.value = "";
+  } catch (error) {
+    bundleMessage.value = error.message || String(error);
+  }
+}
+
+function validateBundleForm() {
+  const errors = {};
+  validateSkillBundleId(errors, "id", bundleDraft.value?.id, t("validation.invalidSkillBundleId", { field: t("fields.id") }));
+  if (valueExists(bundles.value, bundleDraft.value?.id, selectedBundleId.value)) {
+    errors.id = t("validation.duplicateValue", { field: t("fields.id") });
+  }
+  validateRequired(errors, "directory", bundleDraft.value?.directory, t("messages.requiredField", { field: t("fields.directory") }));
+  validateRelativeDirectory(errors, "directory", bundleDraft.value?.directory, t("validation.invalidSupportPath", { field: t("fields.directory") }));
+  bundleErrors.value = errors;
+  bundleMessage.value = firstError(errors) ? t("validation.fixFields") : "";
+  return !bundleMessage.value;
 }
 
 async function deleteBundle() {
@@ -250,6 +295,10 @@ async function selectSkill(name) {
   };
   supportFilePath.value = "";
   supportFileContent.value = "";
+  skillErrors.value = {};
+  skillMessage.value = "";
+  supportErrors.value = {};
+  supportMessage.value = "";
 }
 
 function newSkill() {
@@ -262,9 +311,12 @@ function newSkill() {
     content: t("skills.newSkillContent"),
     _draft: true
   };
+  skillErrors.value = {};
+  skillMessage.value = "";
 }
 
 async function saveSkillDoc() {
+  if (!validateSkillForm()) return;
   const draft = clone(skillDraft.value);
   const payload = {
     name: draft.name,
@@ -277,14 +329,37 @@ async function saveSkillDoc() {
     body: draft.content
   };
   if (skillDraft.value._draft) {
-    await store.createSkill(selectedBundleId.value, payload);
+    try {
+      await store.createSkill(selectedBundleId.value, payload);
+    } catch (error) {
+      skillMessage.value = error.message || String(error);
+      return;
+    }
   } else {
-    await store.saveSkill(selectedBundleId.value, selectedSkillName.value, payload);
+    try {
+      await store.saveSkill(selectedBundleId.value, selectedSkillName.value, payload);
+    } catch (error) {
+      skillMessage.value = error.message || String(error);
+      return;
+    }
   }
   await loadSkills();
   selectedSkillName.value = payload.name;
   skillDraft.value = payload;
+  skillErrors.value = {};
+  skillMessage.value = "";
   await selectSkill(payload.name);
+}
+
+function validateSkillForm() {
+  const errors = {};
+  validateSkillBundleId(errors, "name", skillDraft.value?.name, t("validation.invalidSkillBundleId", { field: t("fields.name") }));
+  if (skillsList.value.some((skill) => (skill.name || itemId(skill)) === skillDraft.value?.name && skillDraft.value.name !== selectedSkillName.value)) {
+    errors.name = t("validation.duplicateValue", { field: t("fields.name") });
+  }
+  skillErrors.value = errors;
+  skillMessage.value = firstError(errors) ? t("validation.fixFields") : "";
+  return !skillMessage.value;
 }
 
 async function deleteSkillDoc() {
@@ -303,10 +378,14 @@ function newSupportFile() {
   const extension = supportType.value === "scripts" ? "sh" : supportType.value === "assets" ? "txt" : "md";
   supportFilePath.value = `${supportType.value}/new-file.${extension}`;
   supportFileContent.value = "";
+  supportErrors.value = {};
+  supportMessage.value = "";
 }
 
 async function loadSupportFile(path) {
   supportFilePath.value = path;
+  supportErrors.value = {};
+  supportMessage.value = "";
   try {
     const result = await store.readSupportFile(selectedBundleId.value, selectedSkillName.value, path);
     supportFileContent.value = result.content || "";
@@ -316,9 +395,24 @@ async function loadSupportFile(path) {
 }
 
 async function saveSupportFile() {
-  await store.saveSupportFile(selectedBundleId.value, selectedSkillName.value, supportFilePath.value, supportFileContent.value);
-  await selectSkill(selectedSkillName.value);
-  supportFilePath.value ||= `${supportType.value}/new-file.md`;
+  if (!validateSupportForm()) return;
+  try {
+    await store.saveSupportFile(selectedBundleId.value, selectedSkillName.value, supportFilePath.value, supportFileContent.value);
+    await selectSkill(selectedSkillName.value);
+    supportFilePath.value ||= `${supportType.value}/new-file.md`;
+    supportErrors.value = {};
+    supportMessage.value = "";
+  } catch (error) {
+    supportMessage.value = error.message || String(error);
+  }
+}
+
+function validateSupportForm() {
+  const errors = {};
+  validateSupportPath(errors, "path", supportFilePath.value, supportType.value, t("validation.invalidSupportPath", { field: t("fields.supportFilePath") }));
+  supportErrors.value = errors;
+  supportMessage.value = firstError(errors) ? t("validation.fixFields") : "";
+  return !supportMessage.value;
 }
 
 async function deleteSupportFile() {
@@ -342,13 +436,19 @@ async function uploadSupportFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   const path = `${supportType.value}/${file.name}`;
-  const content = await fileToBase64(file);
-  await store.uploadSupportFile(selectedBundleId.value, selectedSkillName.value, path, content);
-  await selectSkill(selectedSkillName.value);
-  supportFilePath.value = path;
+  const errors = {};
+  validateSupportPath(errors, "path", path, supportType.value, t("validation.invalidSupportPath", { field: t("fields.supportFilePath") }));
+  supportErrors.value = errors;
+  supportMessage.value = firstError(errors) ? t("validation.fixFields") : "";
+  if (supportMessage.value) return;
   try {
+    const content = await fileToBase64(file);
+    await store.uploadSupportFile(selectedBundleId.value, selectedSkillName.value, path, content);
+    await selectSkill(selectedSkillName.value);
+    supportFilePath.value = path;
     await loadSupportFile(path);
-  } catch (_error) {
+  } catch (error) {
+    supportMessage.value = error.message || String(error);
     supportFileContent.value = "";
   }
   event.target.value = "";

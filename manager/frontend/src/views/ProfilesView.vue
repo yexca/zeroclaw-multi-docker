@@ -39,22 +39,22 @@
           </div>
         </section>
         <form v-if="draft" class="form-grid" @submit.prevent="save">
-          <FormField v-model="draft.id" :label="t('fields.id')" />
+          <FormField v-model="draft.id" :label="t('fields.id')" :error="formErrors.id" required />
           <template v-if="kind === 'llm' || kind === 'vision'">
-            <FormField v-model="draft.provider_family" :label="t('fields.provider')" />
-            <FormField v-model="draft.provider_alias" :label="t('fields.providerAlias')" />
-            <FormField v-model="draft.model" :label="t('fields.model')" />
-            <FormField v-model="draft.base_url" :label="t('fields.baseUrl')" />
+            <FormField v-model="draft.provider_family" :label="t('fields.provider')" :error="formErrors.provider_family" required />
+            <FormField v-model="draft.provider_alias" :label="t('fields.providerAlias')" :error="formErrors.provider_alias" required />
+            <FormField v-model="draft.model" :label="t('fields.model')" :error="formErrors.model" required />
+            <FormField v-model="draft.base_url" :label="t('fields.baseUrl')" :error="formErrors.base_url" />
             <FormField v-model="draft.api_key" :label="t('fields.apiKey')" type="password" />
             <FormField v-model="draft.wire_api" :label="t('fields.wireApi')" :options="wireOptions" />
-            <FormField v-model="draft.timeout_secs" :label="t('fields.timeout')" type="number" />
+            <FormField v-model="draft.timeout_secs" :label="t('fields.timeout')" type="number" min="1" :error="formErrors.timeout_secs" />
             <template v-if="kind === 'vision'">
               <details class="advanced-disclosure form-field--wide">
                 <summary>{{ t("fields.multimodalLimits") }}</summary>
                 <div class="form-grid nested-form">
-                  <FormField v-model="draft.max_images" :label="t('fields.maxImages')" type="number" />
-                  <FormField v-model="draft.max_image_size_mb" :label="t('fields.maxImageSizeMb')" type="number" />
-                  <FormField v-model="draft.max_image_turns" :label="t('fields.maxImageTurns')" type="number" />
+                  <FormField v-model="draft.max_images" :label="t('fields.maxImages')" type="number" min="1" max="16" :error="formErrors.max_images" />
+                  <FormField v-model="draft.max_image_size_mb" :label="t('fields.maxImageSizeMb')" type="number" min="1" max="20" :error="formErrors.max_image_size_mb" />
+                  <FormField v-model="draft.max_image_turns" :label="t('fields.maxImageTurns')" type="number" min="0" :error="formErrors.max_image_turns" />
                   <label class="check-row form-field--wide">
                     <input v-model="draft.allow_remote_fetch" type="checkbox" />
                     <span>{{ t("fields.allowRemoteFetch") }}</span>
@@ -66,8 +66,8 @@
               <details class="advanced-disclosure form-field--wide">
                 <summary>{{ t("profiles.llmAdvanced") }}</summary>
                 <div class="form-grid nested-form">
-                  <FormField v-model="draft.temperature" :label="t('fields.temperature')" type="number" />
-                  <FormField v-model="draft.max_tokens" :label="t('fields.maxTokens')" type="number" />
+                  <FormField v-model="draft.temperature" :label="t('fields.temperature')" type="number" min="0" max="2" :error="formErrors.temperature" />
+                  <FormField v-model="draft.max_tokens" :label="t('fields.maxTokens')" type="number" min="1" :error="formErrors.max_tokens" />
                   <FormField v-model="fallbackModels" :label="t('fields.fallbackModels')" textarea wide />
                   <FormField v-model="extraHeaders" :label="t('fields.extraHeaders')" textarea wide />
                   <FormField v-model="providerExtra" :label="t('fields.providerExtra')" textarea wide />
@@ -85,8 +85,8 @@
             </template>
           </template>
           <template v-else-if="kind === 'matrix'">
-            <FormField v-model="draft.homeserver" :label="t('fields.homeserver')" />
-            <FormField v-model="draft.user_id" :label="t('fields.matrixUser')" />
+            <FormField v-model="draft.homeserver" :label="t('fields.homeserver')" :error="formErrors.homeserver" required />
+            <FormField v-model="draft.user_id" :label="t('fields.matrixUser')" :error="formErrors.user_id" required />
             <FormField v-model="draft.device_id" :label="t('fields.deviceId')" />
             <FormField v-model="draft.password" :label="t('fields.password')" type="password" />
             <FormField v-model="draft.recovery_key" :label="t('fields.recoveryKey')" type="password" />
@@ -99,37 +99,39 @@
                 <label class="check-row form-field--wide"><input v-model="draft.ack_reactions" type="checkbox" /><span>{{ t("fields.ackReactions") }}</span></label>
                 <label class="check-row form-field--wide"><input v-model="draft.interrupt_on_new_message" type="checkbox" /><span>{{ t("fields.interruptOnNewMessage") }}</span></label>
                 <FormField v-model="draft.stream_mode" :label="t('fields.streamMode')" :options="streamOptions" />
-                <FormField v-model="draft.multi_message_delay_ms" :label="t('fields.multiMessageDelayMs')" type="number" />
-                <FormField v-model="draft.channel_debounce_ms" :label="t('fields.channelDebounceMs')" type="number" />
+                <FormField v-model="draft.multi_message_delay_ms" :label="t('fields.multiMessageDelayMs')" type="number" min="0" :error="formErrors.multi_message_delay_ms" />
+                <FormField v-model="draft.channel_debounce_ms" :label="t('fields.channelDebounceMs')" type="number" min="0" :error="formErrors.channel_debounce_ms" />
                 <FormField v-model="draft.access_token" :label="t('fields.accessToken')" type="password" wide />
               </div>
             </details>
             <details class="advanced-disclosure form-field--wide">
               <summary>{{ t("profiles.matrixAdvanced") }}</summary>
               <div class="form-grid nested-form">
-                <FormField v-model="draft.draft_update_interval_ms" :label="t('fields.draftUpdateIntervalMs')" type="number" />
-                <FormField v-model="draft.approval_timeout_secs" :label="t('fields.approvalTimeoutSecs')" type="number" />
+                <FormField v-model="draft.draft_update_interval_ms" :label="t('fields.draftUpdateIntervalMs')" type="number" min="0" :error="formErrors.draft_update_interval_ms" />
+                <FormField v-model="draft.approval_timeout_secs" :label="t('fields.approvalTimeoutSecs')" type="number" min="1" :error="formErrors.approval_timeout_secs" />
                 <FormField v-model="excludedTools" :label="t('fields.excludedTools')" textarea wide />
-                <FormField v-model="draft.reply_min_interval_secs" :label="t('fields.replyMinIntervalSecs')" type="number" />
-                <FormField v-model="draft.reply_queue_depth_max" :label="t('fields.replyQueueDepthMax')" type="number" />
+                <FormField v-model="draft.reply_min_interval_secs" :label="t('fields.replyMinIntervalSecs')" type="number" min="0" :error="formErrors.reply_min_interval_secs" />
+                <FormField v-model="draft.reply_queue_depth_max" :label="t('fields.replyQueueDepthMax')" type="number" min="0" :error="formErrors.reply_queue_depth_max" />
                 <FormField v-model="draft.host_ip" :label="t('fields.hostIp')" />
               </div>
             </details>
           </template>
           <template v-else>
-            <FormField v-model="draft.url" :label="t('fields.url')" />
+            <FormField v-model="draft.url" :label="t('fields.url')" :error="formErrors.url" />
             <FormField v-model="draft.command" :label="t('fields.command')" />
           </template>
           <div class="form-field form-field--wide">
             <span>{{ t("profiles.advancedJson") }}</span>
             <small>{{ t("profiles.advancedJsonHelp") }}</small>
-            <JsonEditor v-model="draft" />
+            <JsonEditor v-model="draft" @error="advancedJsonError = $event" />
+            <small v-if="formErrors.advanced_json" class="field-error">{{ formErrors.advanced_json }}</small>
           </div>
           <div class="button-row form-field--wide">
             <UiButton variant="primary" type="submit"><Save />{{ t("actions.save") }}</UiButton>
             <UiButton v-if="kind === 'llm'" type="button" @click="testProfile"><PlugZap />{{ t("actions.testConnection") }}</UiButton>
             <UiButton v-if="!draft._draft" variant="danger" @click="remove"><Trash2 />{{ t("actions.delete") }}</UiButton>
           </div>
+          <p v-if="formMessage" class="field-error form-field--wide">{{ formMessage }}</p>
         </form>
         <p v-else class="empty-text">{{ t("profiles.empty") }}</p>
       </UiCard>
@@ -155,6 +157,15 @@ import UiCard from "../components/UiCard.vue";
 import { useDialog } from "../composables/useDialog.js";
 import { useI18n } from "../composables/useI18n.js";
 import { clone, itemId } from "../lib/api.js";
+import {
+  firstError,
+  validateHttpUrl,
+  validateId,
+  validateIntegerRange,
+  validateRequired,
+  validateSkillBundleId,
+  valueExists
+} from "../lib/validation.js";
 import { useManagerStore } from "../stores/manager.js";
 
 const route = useRoute();
@@ -164,6 +175,9 @@ const dialog = useDialog();
 const selectedId = ref("");
 const draft = ref(null);
 const testResult = ref(null);
+const formErrors = ref({});
+const formMessage = ref("");
+const advancedJsonError = ref("");
 const wireOptions = [
   { label: t("profiles.wire.chatCompletions"), value: "chat_completions" },
   { label: t("profiles.wire.responses"), value: "responses" }
@@ -202,20 +216,119 @@ function selectProfile(profile) {
   selectedId.value = itemId(profile);
   draft.value = clone(profile);
   testResult.value = null;
+  formErrors.value = {};
+  formMessage.value = "";
+  advancedJsonError.value = "";
 }
 
 function createProfile() {
   draft.value = { ...store.newProfile(kind.value), _draft: true };
   selectedId.value = "";
   testResult.value = null;
+  formErrors.value = {};
+  formMessage.value = "";
+  advancedJsonError.value = "";
 }
 
 async function save() {
+  if (!validateProfileForm()) return;
   const payload = clone(draft.value);
   delete payload._draft;
-  await store.saveProfile(kind.value, payload);
-  selectedId.value = itemId(payload);
-  draft.value = payload;
+  try {
+    await store.saveProfile(kind.value, payload);
+    selectedId.value = itemId(payload);
+    draft.value = payload;
+    formErrors.value = {};
+    formMessage.value = "";
+  } catch (error) {
+    formMessage.value = error.message || String(error);
+  }
+}
+
+function validateProfileForm() {
+  const errors = {};
+  const label = (key) => t(`fields.${key}`);
+  validateId(errors, "id", draft.value?.id, t("validation.invalidId", { field: label("id") }));
+  if (valueExists(profiles.value, draft.value?.id, selectedId.value)) {
+    errors.id = t("validation.duplicateValue", { field: label("id") });
+  }
+
+  if (kind.value === "llm" || kind.value === "vision") {
+    validateSkillBundleId(errors, "provider_family", draft.value?.provider_family, t("validation.invalidSkillBundleId", { field: label("provider") }));
+    validateSkillBundleId(errors, "provider_alias", draft.value?.provider_alias, t("validation.invalidSkillBundleId", { field: label("providerAlias") }));
+    validateRequired(errors, "model", draft.value?.model, t("messages.requiredField", { field: label("model") }));
+    validateHttpUrl(errors, "base_url", draft.value?.base_url, t("messages.invalidUrlField", { field: label("baseUrl") }));
+    validateIntegerRange(errors, "timeout_secs", draft.value?.timeout_secs, {
+      min: 1,
+      message: t("messages.invalidMinNumberField", { field: label("timeout"), min: 1 })
+    });
+  }
+
+  if (kind.value === "vision") {
+    validateIntegerRange(errors, "max_images", draft.value?.max_images, {
+      min: 1,
+      max: 16,
+      message: t("validation.invalidRange", { field: label("maxImages"), min: 1, max: 16 })
+    });
+    validateIntegerRange(errors, "max_image_size_mb", draft.value?.max_image_size_mb, {
+      min: 1,
+      max: 20,
+      message: t("validation.invalidRange", { field: label("maxImageSizeMb"), min: 1, max: 20 })
+    });
+    validateIntegerRange(errors, "max_image_turns", draft.value?.max_image_turns, {
+      min: 0,
+      message: t("messages.invalidMinNumberField", { field: label("maxImageTurns"), min: 0 })
+    });
+  }
+
+  if (kind.value === "llm") {
+    validateIntegerRange(errors, "temperature", draft.value?.temperature, {
+      min: 0,
+      max: 2,
+      message: t("validation.invalidRange", { field: label("temperature"), min: 0, max: 2 })
+    });
+    validateIntegerRange(errors, "max_tokens", draft.value?.max_tokens, {
+      min: 1,
+      message: t("messages.invalidMinNumberField", { field: label("maxTokens"), min: 1 })
+    });
+  }
+
+  if (kind.value === "matrix") {
+    validateRequired(errors, "homeserver", draft.value?.homeserver, t("messages.requiredField", { field: label("homeserver") }));
+    validateHttpUrl(errors, "homeserver", draft.value?.homeserver, t("messages.invalidUrlField", { field: label("homeserver") }));
+    validateRequired(errors, "user_id", draft.value?.user_id, t("messages.requiredField", { field: label("matrixUser") }));
+    for (const key of [
+      "multi_message_delay_ms",
+      "channel_debounce_ms",
+      "draft_update_interval_ms",
+      "reply_min_interval_secs",
+      "reply_queue_depth_max"
+    ]) {
+      validateIntegerRange(errors, key, draft.value?.[key], {
+        min: 0,
+        message: t("messages.invalidMinNumberField", { field: t(`fields.${camelField(key)}`), min: 0 })
+      });
+    }
+    validateIntegerRange(errors, "approval_timeout_secs", draft.value?.approval_timeout_secs, {
+      min: 1,
+      message: t("messages.invalidMinNumberField", { field: label("approvalTimeoutSecs"), min: 1 })
+    });
+  }
+
+  if (kind.value === "mcp") {
+    validateHttpUrl(errors, "url", draft.value?.url, t("messages.invalidUrlField", { field: label("url") }));
+  }
+
+  if (advancedJsonError.value) {
+    errors.advanced_json = t("validation.invalidJson", { field: t("profiles.advancedJson") });
+  }
+  formErrors.value = errors;
+  formMessage.value = firstError(errors) ? t("validation.fixFields") : "";
+  return !formMessage.value;
+}
+
+function camelField(key) {
+  return key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
 async function remove() {

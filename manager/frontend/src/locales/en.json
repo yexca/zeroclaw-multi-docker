@@ -456,7 +456,16 @@
   },
   "validation": {
     "valid": "Validation passed",
-    "invalid": "Validation failed"
+    "invalid": "Validation failed",
+    "invalidId": "{field} must start with a letter or number and use only letters, numbers, dot, underscore, or hyphen.",
+    "invalidSkillBundleId": "{field} must start with a letter or number and use only letters, numbers, underscore, or hyphen.",
+    "invalidQuietHours": "{field} must look like 23-8.",
+    "invalidRange": "{field} must be from {min} to {max}.",
+    "invalidJson": "{field} must be valid JSON.",
+    "fixFields": "Fix the highlighted fields before saving.",
+    "invalidSupportPath": "{field} must stay inside the selected support file type and use safe path segments.",
+    "duplicateValue": "{field} must be unique.",
+    "unknownReference": "{field} references an item that does not exist."
   },
   "messages": {
     "saved": "Saved.",

@@ -20,7 +20,7 @@
 
       <UiCard :title="t('prompts.details')" :description="t('prompts.detailsHelp')">
         <form v-if="draft" class="form-grid" @submit.prevent="save">
-          <FormField v-model="draft.id" :label="t('prompts.templateId')" />
+          <FormField v-model="draft.id" :label="t('prompts.templateId')" :error="formErrors.id" required />
           <FormField v-model="draft.description" :label="t('fields.description')" wide />
           <div class="form-field form-field--wide">
             <span>{{ t("prompts.filesLabel") }}</span>
@@ -31,6 +31,7 @@
               </button>
               <button type="button" @click="addFile"><Plus />{{ t("prompts.file") }}</button>
             </div>
+            <small v-if="formErrors.files" class="field-error">{{ formErrors.files }}</small>
             <div v-if="selectedFile" class="template-file-meta">
               <strong>{{ selectedFile }}</strong>
               <span>{{ fileHelp(selectedFile) }}</span>
@@ -52,6 +53,7 @@
             <UiButton type="button" @click="aiFillOpen = !aiFillOpen"><Sparkles />{{ t("actions.aiFill") }}</UiButton>
             <UiButton v-if="!draft._draft" type="button" variant="danger" @click="deleteTemplate"><Trash2 />{{ t("prompts.deleteTemplate") }}</UiButton>
           </div>
+          <p v-if="formMessage" class="field-error form-field--wide">{{ formMessage }}</p>
         </form>
         <p v-else class="empty-text">{{ t("prompts.empty") }}</p>
       </UiCard>
@@ -100,6 +102,7 @@ import UiCard from "../components/UiCard.vue";
 import { useDialog } from "../composables/useDialog.js";
 import { useI18n } from "../composables/useI18n.js";
 import { clone, itemId } from "../lib/api.js";
+import { firstError, validateId, validatePromptFileName, valueExists } from "../lib/validation.js";
 import { useManagerStore } from "../stores/manager.js";
 
 const store = useManagerStore();
@@ -110,6 +113,8 @@ const TEMPLATE_FILES = [...PROMPT_SYSTEM_FILES, "HEARTBEAT.md", "PROACTIVE.md"];
 const selectedId = ref("");
 const draft = ref(null);
 const selectedFile = ref("");
+const formErrors = ref({});
+const formMessage = ref("");
 const aiFillOpen = ref(false);
 const aiFill = ref({
   llm_profile: "",
@@ -134,6 +139,8 @@ function selectTemplate(template) {
   selectedId.value = itemId(template);
   draft.value = clone(template);
   selectedFile.value = Object.keys(draft.value.files || {})[0] || "";
+  formErrors.value = {};
+  formMessage.value = "";
   resetAiFill();
 }
 
@@ -142,6 +149,8 @@ function createTemplate() {
   draft.value = { id: `template-${next}`, description: "", files: { "AGENTS.md": "" }, _draft: true };
   selectedId.value = "";
   selectedFile.value = "AGENTS.md";
+  formErrors.value = {};
+  formMessage.value = "";
   resetAiFill();
 }
 
@@ -157,12 +166,15 @@ function duplicateTemplate() {
 }
 
 async function save() {
+  if (!validateTemplateForm()) return;
   const payload = clone(draft.value);
   payload.files = payload.files || {};
   delete payload._draft;
   await store.saveTemplate(payload);
   selectedId.value = payload.id;
   draft.value = payload;
+  formErrors.value = {};
+  formMessage.value = "";
 }
 
 async function deleteTemplate() {
@@ -176,7 +188,7 @@ async function deleteTemplate() {
 async function addFile() {
   const name = await dialog.prompt(t("prompts.addFilePrompt"), "USER.md");
   if (!name) return;
-  const normalized = await validateFilename(name);
+  const normalized = validateFilename(name);
   if (!normalized) return;
   if (!draft.value.files) draft.value.files = {};
   if (!(normalized in draft.value.files)) draft.value.files[normalized] = "";
@@ -188,16 +200,19 @@ async function renameFile() {
   if (!selectedFile.value) return;
   const next = await dialog.prompt(t("prompts.renameFilePrompt"), selectedFile.value);
   if (!next) return;
-  const normalized = await validateFilename(next);
+  const normalized = validateFilename(next);
   if (!normalized) return;
   if (normalized === selectedFile.value) return;
   if (draft.value.files?.[normalized] !== undefined) {
-    await dialog.alert(t("prompts.fileExists"));
+    formErrors.value = { ...formErrors.value, files: t("prompts.fileExists") };
+    formMessage.value = t("validation.fixFields");
     return;
   }
   draft.value.files[normalized] = draft.value.files[selectedFile.value] || "";
   delete draft.value.files[selectedFile.value];
   selectedFile.value = normalized;
+  formErrors.value = { ...formErrors.value, files: "" };
+  formMessage.value = firstError(formErrors.value) ? t("validation.fixFields") : "";
   resetAiFill();
 }
 
@@ -257,21 +272,32 @@ function fileHelp(file) {
   return t("prompts.customFileHelp");
 }
 
-function normalizeTemplateFilename(value) {
-  const filename = String(value || "").trim().replaceAll("\\", "/").split("/").pop();
-  if (!filename || !/^[A-Za-z0-9_.-]+$/.test(filename)) {
-    throw new Error(t("prompts.invalidFileName"));
+function validateFilename(value) {
+  const errors = {};
+  const filename = validatePromptFileName(errors, "files", value, t("prompts.invalidFileName"));
+  if (errors.files) {
+    formErrors.value = { ...formErrors.value, files: errors.files };
+    formMessage.value = t("validation.fixFields");
+    return "";
   }
+  formErrors.value = { ...formErrors.value, files: "" };
+  formMessage.value = firstError(formErrors.value) ? t("validation.fixFields") : "";
   return filename;
 }
 
-async function validateFilename(value) {
-  try {
-    return normalizeTemplateFilename(value);
-  } catch (error) {
-    await dialog.alert(t("prompts.invalidFileName"));
-    return "";
+function validateTemplateForm() {
+  const errors = {};
+  validateId(errors, "id", draft.value?.id, t("validation.invalidId", { field: t("prompts.templateId") }));
+  if (valueExists(store.templates, draft.value?.id, selectedId.value)) {
+    errors.id = t("validation.duplicateValue", { field: t("prompts.templateId") });
   }
+  for (const file of Object.keys(draft.value?.files || {})) {
+    validatePromptFileName(errors, "files", file, t("prompts.invalidFileName"));
+    if (errors.files) break;
+  }
+  formErrors.value = errors;
+  formMessage.value = firstError(errors) ? t("validation.fixFields") : "";
+  return !formMessage.value;
 }
 
 function nextTemplateId(prefix) {

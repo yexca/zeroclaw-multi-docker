@@ -400,7 +400,16 @@
   },
   "validation": {
     "valid": "校验通过",
-    "invalid": "校验失败"
+    "invalid": "校验失败",
+    "invalidId": "{field} 必须以字母或数字开头，并且只能使用字母、数字、点、下划线或连字符。",
+    "invalidSkillBundleId": "{field} 必须以字母或数字开头，并且只能使用字母、数字、下划线或连字符。",
+    "invalidQuietHours": "{field} 格式应类似 23-8。",
+    "invalidRange": "{field} 必须在 {min} 到 {max} 之间。",
+    "invalidJson": "{field} 必须是有效 JSON。",
+    "fixFields": "请先修正高亮字段再保存。",
+    "invalidSupportPath": "{field} 必须位于选中的支持文件类型下，并使用安全路径片段。",
+    "duplicateValue": "{field} 必须唯一。",
+    "unknownReference": "{field} 引用了不存在的项目。"
   },
   "messages": {
     "saved": "已保存。",
