@@ -542,6 +542,10 @@ mark.bad {
   width: auto;
 }
 
+.inline-select input {
+  width: 88px;
+}
+
 .segment-tabs {
   display: flex;
   gap: 4px;

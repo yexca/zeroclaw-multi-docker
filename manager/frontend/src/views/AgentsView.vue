@@ -24,6 +24,7 @@
           <FormField v-model="draft.matrix_profile" label="Matrix profile" :options="profileOptions('matrix')" />
           <FormField v-model="draft.mcp_profile" label="MCP profile" :options="profileOptions('mcp', true)" />
           <FormField v-model="draft.prompt_template" label="Prompt template" :options="templateOptions" />
+          <FormField v-model="imagePreset" label="Docker image preset" :options="imageOptions" wide />
           <FormField v-model="draft.image" label="Docker image" wide />
           <FormField v-model="externalPeers" label="External peers" textarea wide />
           <FormField v-model="skillBundles" label="Skill bundles" textarea wide />
@@ -60,9 +61,9 @@
           </details>
           <div class="button-row form-field--wide">
             <UiButton variant="primary" type="submit"><Save />Save</UiButton>
-            <UiButton v-if="!draft._draft" @click="store.controlAgent(draft.id, 'start')"><Play />Start</UiButton>
-            <UiButton v-if="!draft._draft" @click="store.controlAgent(draft.id, 'stop')"><Square />Stop</UiButton>
-            <UiButton v-if="!draft._draft" @click="store.controlAgent(draft.id, 'restart')"><RotateCw />Restart</UiButton>
+            <UiButton v-if="!draft._draft" @click="control('start')"><Play />Start</UiButton>
+            <UiButton v-if="!draft._draft" @click="control('stop')"><Square />Stop</UiButton>
+            <UiButton v-if="!draft._draft" @click="control('restart')"><RotateCw />Restart</UiButton>
             <UiButton v-if="!draft._draft" variant="danger" @click="resetMatrix"><RefreshCcw />Reset Matrix</UiButton>
             <UiButton v-if="!draft._draft" variant="danger" @click="remove"><Trash2 />Delete</UiButton>
           </div>
@@ -74,9 +75,14 @@
         <template v-if="draft && !draft._draft">
           <div class="runtime-actions">
             <UiButton @click="loadStatus"><Activity />Status</UiButton>
+            <label class="inline-select">
+              <span>Tail</span>
+              <input v-model.number="logTail" type="number" min="1" max="2000" />
+            </label>
             <UiButton @click="loadLogs"><ScrollText />Logs</UiButton>
-            <UiButton @click="loadPreview"><FileCode2 />Preview</UiButton>
+            <UiButton @click="loadPreview"><FileCode2 />Config</UiButton>
             <UiButton @click="loadEnv"><Braces />Env</UiButton>
+            <UiButton @click="downloadLogs"><Download />Download logs</UiButton>
           </div>
           <div class="runtime-actions">
             <label class="inline-select">
@@ -100,7 +106,9 @@
             </div>
           </div>
           <pre v-else-if="runtimeTab === 'logs'" class="code-block">{{ logsText }}</pre>
-          <pre v-else class="code-block">{{ previewText }}</pre>
+          <pre v-else-if="runtimeTab === 'config'" class="code-block">{{ configText }}</pre>
+          <pre v-else-if="runtimeTab === 'env'" class="code-block">{{ envText }}</pre>
+          <pre v-else class="code-block">{{ resultText }}</pre>
         </template>
         <p v-else class="empty-text">Save the agent before using runtime actions.</p>
       </UiCard>
@@ -109,12 +117,13 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   Activity,
   ArrowDownToLine,
   ArrowUpFromLine,
   Braces,
+  Download,
   FileCheck2,
   FileCode2,
   Plus,
@@ -138,11 +147,15 @@ const store = useManagerStore();
 const selectedId = ref("");
 const draft = ref(null);
 const runtimeTab = ref("status");
-const runtimeTabs = ["status", "logs", "preview"];
+const runtimeTabs = ["status", "logs", "config", "env", "result"];
 const runtimeStatus = ref(null);
 const runtimeLogs = ref(null);
-const runtimePreview = ref(null);
+const runtimeConfig = ref(null);
+const runtimeEnv = ref(null);
+const runtimeResult = ref(null);
 const applyTemplateMode = ref("keep");
+const logTail = ref(200);
+const DEFAULT_ZEROCLAW_IMAGE = "ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian";
 const templateModeOptions = [
   { label: "Keep existing files", value: "keep" },
   { label: "Only missing files", value: "missing" },
@@ -154,6 +167,30 @@ const storageOptions = [
   { label: "Volume", value: "volume" },
   { label: "Bind", value: "bind" }
 ];
+
+const imageOptions = computed(() => {
+  const recommended = store.images?.recommended || {
+    official: DEFAULT_ZEROCLAW_IMAGE,
+    python: "zeroclaw-python:v0.8.1-debian",
+    root: "zeroclaw-root:v0.8.1-debian"
+  };
+  return [
+    { label: "Custom", value: "__custom__" },
+    { label: "Official ZeroClaw", value: recommended.official },
+    { label: "Python support", value: recommended.python },
+    { label: "Root user", value: recommended.root }
+  ];
+});
+
+const imagePreset = computed({
+  get: () => {
+    const match = imageOptions.value.find((option) => option.value === draft.value?.image);
+    return match ? match.value : "__custom__";
+  },
+  set: (value) => {
+    if (value !== "__custom__") draft.value.image = value;
+  }
+});
 
 watch(
   () => store.agents,
@@ -220,7 +257,9 @@ function selectAgent(agent) {
   draft.value = clone(agent);
   runtimeStatus.value = null;
   runtimeLogs.value = null;
-  runtimePreview.value = null;
+  runtimeConfig.value = null;
+  runtimeEnv.value = null;
+  runtimeResult.value = null;
 }
 
 function createAgent() {
@@ -261,10 +300,14 @@ const logsText = computed(() => {
   return (runtimeLogs.value.lines || []).join("\n") || JSON.stringify(runtimeLogs.value, null, 2);
 });
 
-const previewText = computed(() => {
-  if (!runtimePreview.value) return "No preview loaded.";
-  return typeof runtimePreview.value === "string" ? runtimePreview.value : JSON.stringify(runtimePreview.value, null, 2);
-});
+const configText = computed(() => formatRuntime(runtimeConfig.value, "No config preview loaded."));
+const envText = computed(() => formatRuntime(runtimeEnv.value, "No env preview loaded."));
+const resultText = computed(() => formatRuntime(runtimeResult.value, "No action result loaded."));
+
+function formatRuntime(value, empty) {
+  if (!value) return empty;
+  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
 
 async function loadStatus() {
   runtimeStatus.value = await store.getAgentStatus(draft.value.id);
@@ -272,32 +315,48 @@ async function loadStatus() {
 }
 
 async function loadLogs() {
-  runtimeLogs.value = await store.getAgentLogs(draft.value.id);
+  runtimeLogs.value = await store.getAgentLogs(draft.value.id, logTail.value);
   runtimeTab.value = "logs";
 }
 
 async function loadPreview() {
-  runtimePreview.value = await store.getAgentPreview(draft.value.id);
-  runtimeTab.value = "preview";
+  runtimeConfig.value = await store.getAgentPreview(draft.value.id);
+  runtimeTab.value = "config";
 }
 
 async function loadEnv() {
-  runtimePreview.value = await store.getAgentEnv(draft.value.id);
-  runtimeTab.value = "preview";
+  runtimeEnv.value = await store.getAgentEnv(draft.value.id);
+  runtimeTab.value = "env";
 }
 
 async function runAgentAction(action) {
-  runtimePreview.value = await store.agentAction(draft.value.id, action);
-  runtimeTab.value = "preview";
+  runtimeResult.value = await store.agentAction(draft.value.id, action);
+  runtimeTab.value = "result";
+  await loadStatus();
 }
 
 async function applyTemplate() {
-  runtimePreview.value = await store.agentAction(draft.value.id, "apply-template", { mode: applyTemplateMode.value });
-  runtimeTab.value = "preview";
+  runtimeResult.value = await store.agentAction(draft.value.id, "apply-template", { mode: applyTemplateMode.value });
+  runtimeTab.value = "result";
+  await loadStatus();
+}
+
+async function control(operation) {
+  await store.controlAgent(draft.value.id, operation);
+  await loadStatus();
+  if (operation !== "stop") await loadLogs();
+}
+
+function downloadLogs() {
+  window.location.href = store.agentLogsDownloadUrl(draft.value.id, logTail.value);
 }
 
 async function resetMatrix() {
   if (!confirm(`Reset Matrix E2EE state for ${draft.value.id}? The agent must be stopped.`)) return;
   await runAgentAction("reset-matrix-state");
 }
+
+onMounted(() => {
+  if (!store.images) store.loadImages().catch((error) => store.setError(error));
+});
 </script>

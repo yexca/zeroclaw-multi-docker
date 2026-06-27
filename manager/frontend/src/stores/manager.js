@@ -143,6 +143,9 @@ export const useManagerStore = defineStore("manager", {
     async getAgentLogs(id, tail = 200) {
       return api(`/api/agents/${encodeURIComponent(id)}/logs?tail=${encodeURIComponent(tail)}`);
     },
+    agentLogsDownloadUrl(id, tail = 200) {
+      return `/api/agents/${encodeURIComponent(id)}/logs/download?tail=${encodeURIComponent(tail)}`;
+    },
     async getAgentPreview(id) {
       return api(`/api/agents/${encodeURIComponent(id)}/config-preview`);
     },
