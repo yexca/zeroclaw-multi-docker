@@ -23,43 +23,25 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <header class="app-header">
-        <div>
-          <p class="eyebrow" data-i18n="app.eyebrow">ZeroClaw Matrix</p>
-          <h1 data-i18n="app.heading">Dockyard WebUI</h1>
-        </div>
-        <div class="toolbar" aria-label="Preferences" data-i18n-aria-label="preferences.label">
-          <label class="control compact-control">
-            <span data-i18n="preferences.language">Language</span>
-            <select id="language-switcher"></select>
-          </label>
-          <label class="control compact-control">
-            <span data-i18n="preferences.theme">Theme</span>
-            <select id="theme-switcher"></select>
-          </label>
-        </div>
-      </header>
-      <section id="app" class="workspace" aria-live="polite">
-        <div class="layout startup-layout" aria-busy="true">
-          <nav class="side-nav startup-nav" aria-label="Loading navigation">
+    <div id="app">
+      <main class="boot-shell" aria-busy="true">
+        <aside class="boot-sidebar">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </aside>
+        <section class="boot-panel">
+          <div class="boot-line title"></div>
+          <div class="boot-line"></div>
+          <div class="boot-grid">
             <span></span>
             <span></span>
             <span></span>
-            <span></span>
-          </nav>
-          <section class="content-panel startup-panel">
-            <div class="startup-line title"></div>
-            <div class="startup-line"></div>
-            <div class="startup-grid">
-              <div></div>
-              <div></div>
-              <div></div>
-            </div>
-          </section>
-        </div>
-      </section>
-    </main>
-    <script type="module" src="/src/app.mjs"></script>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
