@@ -335,6 +335,13 @@ svg {
   align-items: start;
 }
 
+.agent-workbench {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(420px, 1fr) minmax(300px, 420px);
+  gap: 16px;
+  align-items: start;
+}
+
 .split-panels,
 .metric-grid {
   display: grid;
@@ -498,6 +505,103 @@ mark.bad {
   min-height: 16px;
 }
 
+.runtime-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.segment-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-subtle);
+}
+
+.segment-tabs button {
+  flex: 1;
+  min-height: 30px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.segment-tabs button.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.runtime-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.runtime-summary div {
+  display: grid;
+  gap: 2px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.runtime-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.runtime-summary strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.file-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.file-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.file-tabs button.active {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.template-editor-text {
+  min-height: 460px;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+
+.advanced-disclosure {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px;
+  background: var(--panel-subtle);
+}
+
+.advanced-disclosure summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
 @media (max-width: 1080px) {
   .app-frame {
     grid-template-columns: 1fr;
@@ -515,6 +619,7 @@ mark.bad {
   }
 
   .editor-layout,
+  .agent-workbench,
   .split-panels,
   .metric-grid {
     grid-template-columns: 1fr;

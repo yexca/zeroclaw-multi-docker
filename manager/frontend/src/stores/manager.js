@@ -129,6 +129,26 @@ export const useManagerStore = defineStore("manager", {
       this.setNotice(`${operation} sent to ${id}.`);
       await this.loadDashboard();
     },
+    async agentAction(id, action, body = undefined) {
+      const result = await api(`/api/agents/${encodeURIComponent(id)}/${action}`, {
+        method: "POST",
+        body: body || {}
+      });
+      this.setNotice(`${action} completed for ${id}.`);
+      return result;
+    },
+    async getAgentStatus(id) {
+      return api(`/api/agents/${encodeURIComponent(id)}/status`);
+    },
+    async getAgentLogs(id, tail = 200) {
+      return api(`/api/agents/${encodeURIComponent(id)}/logs?tail=${encodeURIComponent(tail)}`);
+    },
+    async getAgentPreview(id) {
+      return api(`/api/agents/${encodeURIComponent(id)}/config-preview`);
+    },
+    async getAgentEnv(id) {
+      return api(`/api/agents/${encodeURIComponent(id)}/env`);
+    },
     newProfile(kind) {
       const base = clone(DEFAULT_PROFILE[kind] || { id: `${kind}-default` });
       const count = this.profiles[kind]?.length || 0;
@@ -157,6 +177,20 @@ export const useManagerStore = defineStore("manager", {
       await api(path, { method, body: template });
       await this.loadConfig();
       this.setNotice(`Prompt template ${id} saved.`);
+    },
+    async saveSkillBundle(bundle) {
+      const id = itemId(bundle);
+      const exists = this.skillBundles.some((item) => itemId(item) === id);
+      const path = exists ? `/api/skills/bundles/${encodeURIComponent(id)}` : "/api/skills/bundles";
+      const method = exists ? "PUT" : "POST";
+      await api(path, { method, body: bundle });
+      await this.loadConfig();
+      this.setNotice(`Skill bundle ${id} saved.`);
+    },
+    async deleteSkillBundle(id) {
+      await api(`/api/skills/bundles/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await this.loadConfig();
+      this.setNotice(`Skill bundle ${id} deleted.`);
     },
     async loadDashboard() {
       this.dashboard = await api("/api/dashboard");

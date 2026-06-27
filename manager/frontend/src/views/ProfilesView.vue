@@ -23,6 +23,7 @@
             <FormField v-model="draft.provider_alias" label="Provider alias" />
             <FormField v-model="draft.model" label="Model" />
             <FormField v-model="draft.base_url" label="Base URL" />
+            <FormField v-model="draft.api_key" label="API key" type="password" />
             <FormField v-model="draft.wire_api" label="Wire API" :options="wireOptions" />
             <FormField v-model="draft.timeout_secs" label="Timeout seconds" type="number" />
           </template>
@@ -39,6 +40,7 @@
           </template>
           <div class="form-field form-field--wide">
             <span>Advanced JSON</span>
+            <small>Full object editor. Leave secret fields unchanged unless you intend to replace them.</small>
             <JsonEditor v-model="draft" />
           </div>
           <div class="button-row form-field--wide">
