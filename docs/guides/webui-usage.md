@@ -16,6 +16,16 @@ agent containers start until the WebUI creates them.
 Create and edit manager configuration from the WebUI. Saved local config and
 secret files are ignored by Git.
 
+For frontend-only development, run the Vue/Vite dev server from
+`manager/frontend` and point it at the manager API:
+
+```powershell
+npm ci
+npm run dev -- --port 7653
+```
+
+The Vite server proxies `/api` and `/healthz` to `http://127.0.0.1:7652`.
+
 ## Main Workflows
 
 - Dashboard: view state, Docker details, logs, config hash, rebuild status, and
@@ -128,8 +138,8 @@ provider-specific request body extras, cost pricing, TLS CA path, Gemini OAuth
 settings, and Ollama context/output overrides.
 
 The frontend validates required strings, numeric ranges, URLs, and JSON fields
-before saving. Invalid fields are reported in a browser alert with the specific
-field name.
+before saving. Some remaining workflows still rely on backend validation, so
+future UI work should prefer inline field errors over alerts.
 
 The plug-shaped test button sends a minimal request with the current form
 values, including unsaved edits. It supports `chat_completions` and `responses`

@@ -25,8 +25,8 @@ By default Compose uses the published `yexca/zeroclaw-dockyard:v0.1.2`
 manager image. Developers who want to build from the local source tree can run
 `docker compose up -d --build`.
 
-The first screen opens the configuration editor before Docker status is loaded,
-so the WebUI stays usable even when Docker status calls are slow.
+The first screen opens the Dashboard. Configuration, Docker status, and runtime
+details load through the WebUI after the Vue app mounts.
 
 Create and edit manager configuration from the WebUI. Saved local config and
 secret files are ignored by Git.

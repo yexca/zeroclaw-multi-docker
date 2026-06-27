@@ -5,18 +5,17 @@ provides:
 
 - a Python backend with `/healthz`, `/api/health`, `/api/status`, and the
   manager API under `/api`;
-- a static frontend served by the backend;
+- a Vue 3 frontend built with Vite and served as static files by the backend;
 - a Dockerfile for the `manager` Compose service.
-- frontend foundations for locale loading, browser preference persistence, and
-  light/dark/system theme application.
+- frontend foundations for browser preference persistence and light/dark/system
+  theme application.
 - configuration, profile/template, and agent CRUD over structured YAML files;
 - validation, export, Docker control, status, and log API entry points.
 
 The backend deliberately stays on Python's standard-library HTTP server plus
-PyYAML instead of introducing a larger framework. The repository already used a
-small Python backend with no build step, and this keeps the local-only manager
-container lightweight while still providing a complete API shape for later
-frontend and Docker integration phases.
+PyYAML instead of introducing a larger framework. The manager frontend now has
+a Node/Vite build step, but the runtime container still serves only static files
+and does not need Node.js.
 
 Docker lifecycle APIs use the Docker socket proxy URL from `DOCKER_API_URL`.
 They create manager-owned agent containers with stable names, labels, volume or
@@ -37,18 +36,45 @@ return all practical issues at once for the WebUI to display.
 The manager is intended to be reached only through the host loopback binding in
 `docker-compose.yml`.
 
-## Frontend Foundation
+## Frontend
 
-The current frontend intentionally remains a static, framework-free browser
-module app served by the Python manager. This keeps the phase-01 skeleton free
-of a build step while still giving later phases shared utilities for UI text,
-preferences, and theme state.
+The current frontend is a Vue 3 application under `frontend/`, using Vite,
+Pinia, Vue Router, and a small local component system. The active entry points
+are:
 
-Internationalization uses structured JSON locale files under
-`frontend/src/locales/`. English (`en`) is the default locale and Simplified
-Chinese (`zh-CN`) is supported. All new user-facing WebUI text must use an i18n
-key path, except literal technical values such as file names, protocols, model
-IDs, provider IDs, and container names.
+- `frontend/src/main.js`
+- `frontend/src/App.vue`
+- `frontend/src/router/index.js`
+- `frontend/src/stores/manager.js`
+
+The backend serves the built `frontend/dist` directory. During local frontend
+work, run Vite from `manager/frontend`; its dev server proxies `/api` and
+`/healthz` to the Python manager on `127.0.0.1:7652`.
+
+```sh
+cd manager/frontend
+npm ci
+npm run dev -- --port 7653
+```
+
+The checked-in dependency set requires Node `^20.19.0 || >=22.12.0` because of
+Vite and `@vitejs/plugin-vue`. The Dockerfile and recommended verification path
+use `node:22-alpine`:
+
+```sh
+docker run --rm -v "${PWD}:/work" -w /work/manager/frontend node:22-alpine sh -lc "npm ci && npm run build"
+```
+
+The old framework-free module at `frontend/src/app.mjs` and the old
+`frontend/build.mjs` esbuild helper are retained only as migration references.
+Do not use either as the current app or build entry point. Remove them only
+after the Vue implementation has fully replaced every legacy workflow.
+
+Internationalization is mid-migration. The legacy structured JSON locale files
+remain under `frontend/src/locales/`, with English (`en`) as the default locale
+and Simplified Chinese (`zh-CN`) available. The current Vue views still contain
+hard-coded English labels in many places; future Vue i18n work should connect a
+small composable or store to these files before expanding locale coverage.
 
 Theme support is implemented through CSS custom properties and the
 `data-theme-mode` / `data-theme` attributes on `<html>`. Supported modes are
@@ -56,9 +82,7 @@ Theme support is implemented through CSS custom properties and the
 reload. Browser-level language and theme preferences are persisted in
 `localStorage`.
 
-The backend exposes `/api/webui/defaults` so later configuration work can wire
-manager defaults into the browser. Phase 02 should represent those defaults in
-`config/manager.yaml` as:
+The backend exposes `/api/webui/defaults`, backed by manager configuration:
 
 ```yaml
 webui:
@@ -120,6 +144,12 @@ Run the frontend foundation checks with:
 
 ```sh
 node manager/frontend/tests/ui-foundation.test.mjs
+```
+
+Run the Vue production build with Node 22:
+
+```sh
+docker run --rm -v "${PWD}:/work" -w /work/manager/frontend node:22-alpine sh -lc "npm ci >/tmp/npm.log && npm run build"
 ```
 
 Run backend tests with:

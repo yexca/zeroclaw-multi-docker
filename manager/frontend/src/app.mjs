@@ -1,4 +1,6 @@
 ﻿import { createI18n } from "./i18n.mjs";
+// Legacy framework-free WebUI retained only as a migration reference.
+// The active frontend entry point is src/main.js.
 import { DEFAULT_PREFERENCES, loadDefaultPreferences, readPreference, STORAGE_KEYS } from "./preferences.mjs";
 import { createThemeController } from "./theme.mjs";
 

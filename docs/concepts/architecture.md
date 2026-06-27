@@ -42,17 +42,24 @@ storage mode, `shared/` is mounted into the agent at `/zeroclaw-data/shared`.
 
 ## Frontend Startup Flow
 
-The frontend is static HTML, CSS, and browser JavaScript. The source uses
-browser ES modules, and the manager image builds them into a hashed static asset
-with esbuild. `index.html` includes a lightweight startup skeleton so the first
-paint is not blank while modules and API calls load.
+The frontend source is a Vue 3 application built by Vite. It uses Pinia for the
+manager state store, Vue Router for the main sections, and lightweight local
+components for the console-style UI. The Python backend still serves only static
+files from the built `frontend/dist` output.
 
-Startup applies the locally stored theme before loading CSS, initializes i18n
-from local/default preferences, renders the shell, and fetches `/api/config`.
-The default first view is the configuration editor. Docker-backed dashboard
-status is refreshed in the background or when the Dashboard view is opened.
-This keeps configuration editing usable even when Docker status calls are slow
-or temporarily unavailable.
+`index.html` includes a lightweight startup skeleton so the first paint is not
+blank while the Vue bundle and API calls load. Vite emits hashed assets under
+`/assets/`, while the backend serves `index.html` with no-cache headers.
+
+Startup applies the locally stored theme before loading CSS, mounts the Vue app
+from `src/main.js`, loads manager data through the Pinia store, and fetches
+Docker-backed status in the relevant views. The default first route is the
+Dashboard, with Agents, Profiles, Skills, Prompt Templates, Docker Images,
+Docker Resources, and Export exposed through Vue Router.
+
+The previous framework-free entry point, `manager/frontend/src/app.mjs`, is no
+longer part of startup. It remains in the tree as a migration reference until
+the team decides every legacy workflow has been fully replaced.
 
 ## Docker API Flow
 

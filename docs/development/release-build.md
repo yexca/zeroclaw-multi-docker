@@ -26,9 +26,10 @@ docker run --rm -v "${PWD}/manager/frontend:/work" -w /work node:22-alpine npm r
 The build writes:
 
 - `manager/frontend/dist/index.html`
-- `manager/frontend/dist/assets/app-[hash].js`
-- `manager/frontend/dist/styles.css`
-- `manager/frontend/dist/src/locales/*.json`
+- `manager/frontend/dist/assets/index-[hash].js`
+- `manager/frontend/dist/assets/index-[hash].css`
+- additional hashed chunks under `manager/frontend/dist/assets/` when Vite
+  splits the bundle
 
 `dist` and `node_modules` are ignored by Git.
 

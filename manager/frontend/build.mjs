@@ -1,3 +1,5 @@
+// Legacy esbuild helper retained only as a migration reference.
+// The active production build is `npm run build`, backed by Vite.
 import { mkdir, cp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
