@@ -643,6 +643,27 @@ mark.bad {
   align-items: start;
 }
 
+.support-file-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.compact-tabs {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.compact-tabs button {
+  font-size: 12px;
+}
+
+.support-file-list {
+  max-height: 560px;
+  overflow: auto;
+}
+
 @media (max-width: 1080px) {
   .app-frame {
     grid-template-columns: 1fr;
@@ -662,6 +683,7 @@ mark.bad {
   .editor-layout,
   .agent-workbench,
   .skill-library-layout,
+  .support-file-layout,
   .split-panels,
   .metric-grid {
     grid-template-columns: 1fr;

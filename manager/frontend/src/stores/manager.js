@@ -226,6 +226,38 @@ export const useManagerStore = defineStore("manager", {
       this.setNotice(`Skill ${skillName} archived.`);
       return result;
     },
+    async readSupportFile(bundleId, skillName, filePath) {
+      return api(
+        `/api/skills/bundles/${encodeURIComponent(bundleId)}/skills/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`
+      );
+    },
+    async saveSupportFile(bundleId, skillName, filePath, content) {
+      const result = await api(`/api/skills/bundles/${encodeURIComponent(bundleId)}/skills/${encodeURIComponent(skillName)}/files`, {
+        method: "POST",
+        body: { file_path: filePath, content }
+      });
+      this.setNotice(`Support file ${filePath} saved.`);
+      return result;
+    },
+    async uploadSupportFile(bundleId, skillName, filePath, contentBase64) {
+      const result = await api(
+        `/api/skills/bundles/${encodeURIComponent(bundleId)}/skills/${encodeURIComponent(skillName)}/files/upload`,
+        {
+          method: "POST",
+          body: { file_path: filePath, content_base64: contentBase64 }
+        }
+      );
+      this.setNotice(`Support file ${filePath} uploaded.`);
+      return result;
+    },
+    async deleteSupportFile(bundleId, skillName, filePath) {
+      const result = await api(
+        `/api/skills/bundles/${encodeURIComponent(bundleId)}/skills/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
+        { method: "DELETE" }
+      );
+      this.setNotice(`Support file ${filePath} deleted.`);
+      return result;
+    },
     async loadDashboard() {
       this.dashboard = await api("/api/dashboard");
     },

@@ -60,7 +60,7 @@
           <div class="item-list">
             <button v-for="skill in skillsList" :key="skill.name" :class="{ active: selectedSkillName === skill.name }" @click="selectSkill(skill.name)">
               <strong>{{ skill.name }}</strong>
-              <span>{{ skill.description || "No description" }}</span>
+              <span>{{ skill.frontmatter?.description || "No description" }}</span>
             </button>
             <p v-if="!skillsList.length" class="empty-text">No skills loaded for this bundle.</p>
           </div>
@@ -82,7 +82,41 @@
 
     <div v-else class="tab-panel">
       <UiCard title="Support files" description="References, scripts, and assets for the selected skill.">
-        <p class="empty-text">Support file editing is next in this Vue migration. Select Library for SKILL.md editing for now.</p>
+        <div v-if="selectedBundleId && selectedSkillName" class="support-file-layout">
+          <aside>
+            <div class="segment-tabs compact-tabs">
+              <button v-for="type in supportTypes" :key="type" :class="{ active: supportType === type }" @click="supportType = type">
+                {{ type }}
+              </button>
+            </div>
+            <div class="item-list support-file-list">
+              <button
+                v-for="file in supportFilesForType"
+                :key="file"
+                :class="{ active: supportFilePath === file }"
+                @click="loadSupportFile(file)"
+              >
+                <strong>{{ fileName(file) }}</strong>
+                <span>{{ file }}</span>
+              </button>
+              <p v-if="!supportFilesForType.length" class="empty-text">No files in {{ supportType }}.</p>
+            </div>
+          </aside>
+          <form class="form-grid" @submit.prevent="saveSupportFile">
+            <FormField v-model="supportFilePath" label="File path" wide />
+            <FormField v-model="supportFileContent" label="Content" textarea wide />
+            <div class="button-row form-field--wide">
+              <UiButton variant="primary" type="submit"><Save />Save file</UiButton>
+              <UiButton type="button" @click="newSupportFile"><Plus />New text file</UiButton>
+              <UiButton v-if="supportFilePath" type="button" variant="danger" @click="deleteSupportFile"><Trash2 />Delete</UiButton>
+            </div>
+            <div class="form-field form-field--wide">
+              <span>Upload file</span>
+              <input type="file" @change="uploadSupportFile" />
+            </div>
+          </form>
+        </div>
+        <p v-else class="empty-text">Select a bundle and skill in Skill library first.</p>
       </UiCard>
     </div>
   </section>
@@ -113,6 +147,10 @@ const bundleDraft = ref(null);
 const skillsList = ref([]);
 const selectedSkillName = ref("");
 const skillDraft = ref(null);
+const supportTypes = ["references", "scripts", "assets"];
+const supportType = ref("references");
+const supportFilePath = ref("");
+const supportFileContent = ref("");
 
 const bundleInclude = computed({
   get: () => (bundleDraft.value?.include || []).join("\n"),
@@ -128,6 +166,10 @@ const skillTags = computed({
   get: () => (skillDraft.value?.tags || []).join(", "),
   set: (value) => (skillDraft.value.tags = String(value || "").split(",").map((tag) => tag.trim()).filter(Boolean))
 });
+
+const supportFilesForType = computed(() =>
+  (skillDraft.value?.files || []).filter((file) => String(file).replace("\\", "/").startsWith(`${supportType.value}/`))
+);
 
 watch(
   () => store.skillsConfig,
@@ -158,6 +200,8 @@ function selectBundle(bundle) {
   bundleDraft.value = clone(bundle);
   selectedSkillName.value = "";
   skillDraft.value = null;
+  supportFilePath.value = "";
+  supportFileContent.value = "";
   loadSkills();
 }
 
@@ -193,13 +237,15 @@ async function selectSkill(name) {
   selectedSkillName.value = name;
   const doc = await store.readSkill(selectedBundleId.value, name);
   skillDraft.value = {
-    name: doc.name || name,
-    description: doc.description || "",
-    category: doc.category || "",
-    tags: doc.tags || [],
-    content: doc.content || "",
+    name: doc.frontmatter?.name || doc.name || name,
+    description: doc.frontmatter?.description || "",
+    category: doc.frontmatter?.category || "",
+    tags: doc.frontmatter?.tags || [],
+    content: doc.body || "",
     files: doc.files || []
   };
+  supportFilePath.value = "";
+  supportFileContent.value = "";
 }
 
 function newSkill() {
@@ -215,8 +261,17 @@ function newSkill() {
 }
 
 async function saveSkillDoc() {
-  const payload = clone(skillDraft.value);
-  delete payload._draft;
+  const draft = clone(skillDraft.value);
+  const payload = {
+    name: draft.name,
+    frontmatter: {
+      name: draft.name,
+      description: draft.description,
+      category: draft.category,
+      tags: draft.tags
+    },
+    body: draft.content
+  };
   if (skillDraft.value._draft) {
     await store.createSkill(selectedBundleId.value, payload);
   } else {
@@ -225,6 +280,7 @@ async function saveSkillDoc() {
   await loadSkills();
   selectedSkillName.value = payload.name;
   skillDraft.value = payload;
+  await selectSkill(payload.name);
 }
 
 async function deleteSkillDoc() {
@@ -233,5 +289,64 @@ async function deleteSkillDoc() {
   selectedSkillName.value = "";
   skillDraft.value = null;
   await loadSkills();
+}
+
+function fileName(path) {
+  return String(path || "").split("/").pop() || path;
+}
+
+function newSupportFile() {
+  const extension = supportType.value === "scripts" ? "sh" : supportType.value === "assets" ? "txt" : "md";
+  supportFilePath.value = `${supportType.value}/new-file.${extension}`;
+  supportFileContent.value = "";
+}
+
+async function loadSupportFile(path) {
+  supportFilePath.value = path;
+  try {
+    const result = await store.readSupportFile(selectedBundleId.value, selectedSkillName.value, path);
+    supportFileContent.value = result.content || "";
+  } catch (error) {
+    supportFileContent.value = `Unable to preview this file as UTF-8 text.\n\n${error.message || error}`;
+  }
+}
+
+async function saveSupportFile() {
+  await store.saveSupportFile(selectedBundleId.value, selectedSkillName.value, supportFilePath.value, supportFileContent.value);
+  await selectSkill(selectedSkillName.value);
+  supportFilePath.value ||= `${supportType.value}/new-file.md`;
+}
+
+async function deleteSupportFile() {
+  if (!supportFilePath.value || !confirm(`Delete ${supportFilePath.value}?`)) return;
+  await store.deleteSupportFile(selectedBundleId.value, selectedSkillName.value, supportFilePath.value);
+  supportFilePath.value = "";
+  supportFileContent.value = "";
+  await selectSkill(selectedSkillName.value);
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadSupportFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const path = `${supportType.value}/${file.name}`;
+  const content = await fileToBase64(file);
+  await store.uploadSupportFile(selectedBundleId.value, selectedSkillName.value, path, content);
+  await selectSkill(selectedSkillName.value);
+  supportFilePath.value = path;
+  try {
+    await loadSupportFile(path);
+  } catch (_error) {
+    supportFileContent.value = "";
+  }
+  event.target.value = "";
 }
 </script>
