@@ -1048,32 +1048,108 @@ mark.bad {
   color: var(--text);
 }
 
-.skill-library-layout {
+.skills-workbench {
   display: grid;
-  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
 }
 
-.support-file-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
+.skills-workbench > .ui-card:first-child {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
 }
 
-.compact-tabs {
+.skill-tree {
+  display: grid;
+  gap: 3px;
+}
+
+.skill-tree button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
   width: 100%;
-  margin-bottom: 10px;
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
 }
 
-.compact-tabs button {
+.skill-tree button:hover,
+.skill-tree button.active {
+  border-color: var(--line);
+  background: var(--panel-subtle);
+}
+
+.skill-tree strong,
+.skill-tree small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-tree small {
+  color: var(--muted);
   font-size: 12px;
 }
 
-.support-file-list {
-  max-height: 560px;
-  overflow: auto;
+.skill-tree__skill {
+  padding-left: 22px !important;
+}
+
+.skill-tree__file,
+.skill-tree__folder {
+  padding-left: 38px !important;
+}
+
+.skill-tree__support {
+  padding-left: 54px !important;
+}
+
+.skill-tree__count {
+  justify-self: end;
+}
+
+.skill-tree__empty {
+  margin: 2px 0 6px 46px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.skills-workbench textarea {
+  min-height: 170px;
+}
+
+.skills-workbench .form-field--wide textarea {
+  min-height: 360px;
+}
+
+.resource-card--button {
+  width: 100%;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.resource-card--button:hover {
+  border-color: var(--line-strong);
+  background: var(--panel-subtle);
+}
+
+.visually-hidden-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .resource-buckets {
@@ -1154,8 +1230,7 @@ mark.bad {
 
   .editor-layout,
   .agent-workbench,
-  .skill-library-layout,
-  .support-file-layout,
+  .skills-workbench,
   .split-panels,
   .runtime-groups,
   .metric-grid {
@@ -1163,6 +1238,7 @@ mark.bad {
   }
 
   .sticky-panel,
+  .skills-workbench > .ui-card:first-child,
   .sticky-tabs,
   .sticky-template-meta {
     position: static;
