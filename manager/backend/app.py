@@ -658,13 +658,10 @@ class ManagerHandler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
 
-        content_type = "text/html; charset=utf-8"
-        if target.suffix == ".css":
-            content_type = "text/css; charset=utf-8"
-        elif target.suffix in {".js", ".mjs"}:
-            content_type = "application/javascript; charset=utf-8"
-        elif target.suffix == ".json":
-            content_type = "application/json; charset=utf-8"
+        guessed_type, _encoding = mimetypes.guess_type(target.name)
+        content_type = guessed_type or "application/octet-stream"
+        if content_type.startswith("text/") or target.suffix in {".js", ".mjs", ".json", ".svg"}:
+            content_type = f"{content_type}; charset=utf-8"
 
         body = target.read_bytes()
         self.send_response(200)

@@ -2,7 +2,7 @@
   <div class="app-frame">
     <aside class="sidebar">
       <RouterLink class="brand" to="/dashboard">
-        <span class="brand-mark">Z</span>
+        <img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
         <span>
           <strong>ZeroClaw</strong>
           <small>Dockyard</small>

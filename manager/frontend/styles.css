@@ -151,14 +151,11 @@ svg {
 }
 
 .brand-mark {
-  display: grid;
   width: 34px;
   height: 34px;
-  place-items: center;
   border-radius: 7px;
-  background: var(--text);
-  color: var(--bg);
-  font-weight: 800;
+  display: block;
+  flex: 0 0 auto;
 }
 
 .brand strong,

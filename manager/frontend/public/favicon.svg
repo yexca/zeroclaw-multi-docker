@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Agent Orbit</title>
+  <desc id="desc">Multiple managed agents orbiting a central local manager core.</desc>
+  <rect width="256" height="256" rx="48" fill="#18181b"/>
+  <circle cx="128" cy="128" r="72" fill="none" stroke="#3f3f46" stroke-width="12"/>
+  <circle cx="128" cy="128" r="42" fill="#2dd4bf"/>
+  <path d="M109 112h38v13h-20l20 20v1h-38v-13h21l-21-20z" fill="#042f2e"/>
+  <circle cx="128" cy="50" r="20" fill="#60a5fa"/>
+  <circle cx="196" cy="166" r="20" fill="#f4f4f5"/>
+  <circle cx="60" cy="166" r="20" fill="#0f766e"/>
+  <path d="M128 70v26M178 154l-24-14M78 154l24-14" stroke="#a1a1aa" stroke-width="9" stroke-linecap="round"/>
+</svg>
