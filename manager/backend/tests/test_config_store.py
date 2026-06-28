@@ -845,6 +845,57 @@ class DockerControllerTest(unittest.TestCase):
         assert spec is not None
         self.assertEqual(spec.environment["PROACTIVE_AGENT_URL"], "http://gateway.local/custom")
 
+    def test_volume_sync_creates_named_volume_with_manager_label(self) -> None:
+        class RecordingClient:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def request(self, method, path, payload=None, query=None, raw=False):
+                self.calls.append({"method": method, "path": path, "payload": payload, "query": query, "raw": raw})
+                if method == "GET" and path.startswith("/volumes/"):
+                    raise DockerApiError(404, "not found")
+                if method == "POST" and path == "/volumes/create":
+                    return {"Name": payload["Name"]}
+                if method == "POST" and path == "/containers/create":
+                    return {"Id": "sync-helper"}
+                if method == "POST" and path == "/containers/sync-helper/wait":
+                    return {"StatusCode": 0}
+                if method in {"POST", "DELETE"}:
+                    return {}
+                raise AssertionError(f"unexpected Docker API call: {method} {path}")
+
+        controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
+        controller.client = RecordingClient()
+        controller._manager_mounts = {}
+        spec = controller.build_container_spec(
+            {
+                "paths": {"instances_dir": str(Path(self.temp_dir.name) / "instances")},
+                "docker": {"project_name": "zeroclaw-dockyard"},
+            },
+            {"id": "agent1", "host_port": 42641},
+        )
+
+        controller.sync_local_to_runtime(spec)
+
+        create_volume = next(call for call in controller.client.calls if call["path"] == "/volumes/create")
+        create_helper = next(call for call in controller.client.calls if call["path"] == "/containers/create")
+        self.assertLess(controller.client.calls.index(create_volume), controller.client.calls.index(create_helper))
+        self.assertEqual(
+            create_volume["payload"],
+            {"Name": "zeroclaw-dockyard-agent-agent1-data", "Labels": {MANAGER_LABEL: "true"}},
+        )
+
+    def test_bind_sync_does_not_create_volume(self) -> None:
+        controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
+        spec = controller.build_container_spec({"docker": {"storage_driver": "bind"}}, {"id": "agent1", "host_port": 42641})
+        calls = []
+        controller.ensure_volume = lambda volume_name: calls.append(volume_name)
+        controller.run_sync_helper = lambda _spec, _direction: None
+
+        controller.sync_local_to_runtime(spec)
+
+        self.assertEqual(calls, [])
+
     def test_reset_matrix_state_rejects_running_container(self) -> None:
         controller = DockerApiController("http://docker-socket-proxy:2375", Path(self.temp_dir.name))
         agent = {"id": "agent1", "host_port": 42641}

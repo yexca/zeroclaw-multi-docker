@@ -822,6 +822,8 @@ class DockerApiController:
         if spec.storage_driver == "bind":
             spec.instance_dir.mkdir(parents=True, exist_ok=True)
             (spec.instance_dir / "workspace").mkdir(parents=True, exist_ok=True)
+        else:
+            self.ensure_spec_volume(spec)
         entrypoint = ["/bin/sh", "/zeroclaw-data/bootstrap/render-config.sh"] if spec.storage_driver == "volume" else ["/bin/sh", "/bootstrap/render-config.sh"]
         mounts = [{"Type": "volume", "Source": spec.volume_name, "Target": "/zeroclaw-data"}] if spec.storage_driver == "volume" else [
             {"Type": "bind", "Source": str(spec.bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
@@ -855,6 +857,8 @@ class DockerApiController:
     def create_proactive_container(self, spec: "ContainerSpec") -> dict[str, Any]:
         if spec.storage_driver == "bind":
             (spec.instance_dir / "proactive").mkdir(parents=True, exist_ok=True)
+        else:
+            self.ensure_spec_volume(spec)
         entrypoint = ["python", "/state/bootstrap/proactive.py"] if spec.storage_driver == "volume" else ["python", "/bootstrap/proactive.py"]
         mounts = [{"Type": "volume", "Source": spec.volume_name, "Target": "/state"}] if spec.storage_driver == "volume" else [
             {"Type": "bind", "Source": str(spec.bootstrap_dir), "Target": "/bootstrap", "ReadOnly": True},
@@ -887,6 +891,10 @@ class DockerApiController:
             if exc.status != 404:
                 raise
         self.client.request("POST", "/volumes/create", payload={"Name": volume_name, "Labels": {MANAGER_LABEL: "true"}})
+
+    def ensure_spec_volume(self, spec: "ContainerSpec") -> None:
+        if spec.storage_driver == "volume":
+            self.ensure_volume(spec.volume_name)
 
     def list_containers_for_audit(self, expected: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
         containers = self.client.request("GET", "/containers/json", query={"all": 1})
@@ -1117,10 +1125,12 @@ copy_tree(source, target)
     def sync_local_to_runtime(self, spec: "ContainerSpec") -> None:
         spec.local_instance_dir.mkdir(parents=True, exist_ok=True)
         (spec.local_instance_dir / "workspace").mkdir(parents=True, exist_ok=True)
+        self.ensure_spec_volume(spec)
         self.run_sync_helper(spec, "to-runtime")
 
     def sync_runtime_to_local(self, spec: "ContainerSpec") -> None:
         spec.local_instance_dir.mkdir(parents=True, exist_ok=True)
+        self.ensure_spec_volume(spec)
         self.run_sync_helper(spec, "from-runtime")
 
     def run_sync_helper(self, spec: "ContainerSpec", direction: str) -> None:
@@ -1158,6 +1168,7 @@ copy_tree(source, target)
                     pass
 
     def run_matrix_reset_helper(self, spec: "ContainerSpec") -> None:
+        self.ensure_spec_volume(spec)
         helper_name = f"zeroclaw-reset-matrix-{spec.safe_name}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
         script = self.matrix_reset_script(spec.safe_name)
         payload = {
