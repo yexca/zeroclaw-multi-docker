@@ -44,7 +44,7 @@ services:
   manager:
     build:
       context: ./manager
-    image: ${MANAGER_IMAGE:-yexca/zeroclaw-dockyard:v0.1.2}
+    image: ${MANAGER_IMAGE:-yexca/zeroclaw-dockyard:v0.2.0}
     pull_policy: missing
     container_name: zeroclaw-dockyard
     restart: unless-stopped

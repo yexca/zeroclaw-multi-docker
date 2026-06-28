@@ -40,7 +40,7 @@ http://127.0.0.1:7652
 默认情况下，Compose 使用已发布的管理器镜像：
 
 ```text
-yexca/zeroclaw-dockyard:v0.1.2
+yexca/zeroclaw-dockyard:v0.2.0
 ```
 
 如果想从当前源码构建管理器：

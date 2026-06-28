@@ -43,7 +43,7 @@ http://127.0.0.1:7652
 By default Compose uses the published manager image:
 
 ```text
-yexca/zeroclaw-dockyard:v0.1.2
+yexca/zeroclaw-dockyard:v0.2.0
 ```
 
 To build the manager from this source tree instead:

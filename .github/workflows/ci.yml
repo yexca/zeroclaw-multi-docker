@@ -41,7 +41,7 @@ jobs:
 
       - name: Run frontend checks
         run: |
-          node --check manager/frontend/src/app.mjs
+          node --input-type=module --check < manager/frontend/src/main.js
           node -e "JSON.parse(require('fs').readFileSync('manager/frontend/src/locales/en.json','utf8')); JSON.parse(require('fs').readFileSync('manager/frontend/src/locales/zh-CN.json','utf8'));"
           node manager/frontend/tests/ui-foundation.test.mjs
 
