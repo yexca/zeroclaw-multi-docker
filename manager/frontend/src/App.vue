@@ -10,7 +10,7 @@
       </RouterLink>
 
       <nav class="nav-list" :aria-label="t('nav.label')">
-        <RouterLink v-for="item in navItems" :key="item.to" class="nav-link" :to="item.to">
+        <RouterLink v-for="item in navItems" :key="item.to" class="nav-link" :class="navClass(item)" :to="item.to">
           <component :is="item.icon" aria-hidden="true" />
           <span>{{ t(item.labelKey) }}</span>
         </RouterLink>
@@ -55,17 +55,15 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { RouterLink, RouterView } from "vue-router";
+import { RouterLink, RouterView, useRoute } from "vue-router";
 import {
   Boxes,
   Bot,
   Cpu,
-  FileArchive,
   FileText,
   Gauge,
   Languages,
   Network,
-  Package,
   Plug,
   RefreshCw,
   Settings2,
@@ -81,6 +79,7 @@ import { applyThemeMode, normalizeThemeMode } from "./theme-core.mjs";
 import { loadDefaultPreferences, readPreference, STORAGE_KEYS } from "./preferences.mjs";
 
 const store = useManagerStore();
+const route = useRoute();
 const { locale, supportedLocales, setLocale, t } = useI18n();
 const themeMode = ref(normalizeThemeMode(localStorage.getItem("zeroclaw.webui.theme") || "system"));
 const themeModes = ["system", "light", "dark"];
@@ -92,16 +91,18 @@ const language = computed({
 const navItems = [
   { to: "/dashboard", labelKey: "nav.dashboard", icon: Gauge },
   { to: "/agents", labelKey: "nav.agents", icon: Bot },
+  { to: "/prompts", labelKey: "nav.prompts", icon: FileText },
+  { to: "/skills", labelKey: "nav.skills", icon: Boxes },
+  { to: "/profiles/mcp", labelKey: "nav.mcp", icon: Plug },
+  { to: "/profiles/matrix", labelKey: "nav.matrix", icon: Network },
   { to: "/profiles/llm", labelKey: "nav.llm", icon: Cpu },
   { to: "/profiles/vision", labelKey: "nav.vision", icon: Sparkles },
-  { to: "/profiles/matrix", labelKey: "nav.matrix", icon: Network },
-  { to: "/profiles/mcp", labelKey: "nav.mcp", icon: Plug },
-  { to: "/skills", labelKey: "nav.skills", icon: Boxes },
-  { to: "/prompts", labelKey: "nav.prompts", icon: FileText },
-  { to: "/images", labelKey: "nav.images", icon: Package },
-  { to: "/resources", labelKey: "nav.resources", icon: Settings2 },
-  { to: "/export", labelKey: "nav.export", icon: FileArchive }
+  { to: "/advanced/images", labelKey: "nav.advanced", icon: Settings2, activePrefix: "/advanced" }
 ];
+
+function navClass(item) {
+  return { "router-link-active": item.activePrefix && route.path.startsWith(item.activePrefix) };
+}
 
 function applyTheme() {
   localStorage.setItem("zeroclaw.webui.theme", themeMode.value);

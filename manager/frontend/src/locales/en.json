@@ -30,14 +30,18 @@
     "dashboard": "Dashboard",
     "agents": "Agents",
     "images": "Docker Images",
-    "llm": "LLM Profiles",
-    "vision": "Vision LLM Profiles",
-    "matrix": "Matrix Profiles",
-    "mcp": "MCP Profiles",
+    "llm": "LLM",
+    "vision": "Vision LLM",
+    "matrix": "Matrix",
+    "mcp": "MCP",
     "skills": "Skills",
-    "prompts": "Prompt Templates",
+    "prompts": "Prompt",
     "export": "Export",
-    "resources": "Docker Resources"
+    "resources": "Docker Resources",
+    "advanced": "Advanced"
+  },
+  "advanced": {
+    "tabsLabel": "Advanced sections"
   },
   "images": {
     "title": "Docker Images",

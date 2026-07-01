@@ -29,15 +29,19 @@
     "label": "管理区域",
     "dashboard": "仪表盘",
     "agents": "智能体",
-    "llm": "LLM 配置",
-    "matrix": "Matrix 配置",
-    "mcp": "MCP 配置",
-    "prompts": "提示词模板",
+    "llm": "LLM",
+    "matrix": "Matrix",
+    "mcp": "MCP",
+    "prompts": "Prompt",
     "export": "导出",
-    "vision": "Vision LLM 配置",
+    "vision": "Vision LLM",
     "images": "镜像管理",
     "resources": "Docker 资源",
-    "skills": "技能"
+    "skills": "技能",
+    "advanced": "高级"
+  },
+  "advanced": {
+    "tabsLabel": "高级功能分区"
   },
   "images": {
     "title": "镜像管理",
