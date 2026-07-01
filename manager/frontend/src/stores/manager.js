@@ -41,8 +41,8 @@ const DEFAULT_PROFILE = {
   matrix: {
     id: "matrix-default",
     homeserver: "https://matrix.org",
+    login_mode: "account",
     user_id: "",
-    device_id: "",
     password: "",
     recovery_key: "",
     allowed_rooms: []

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import tempfile
 import unittest
@@ -272,7 +272,7 @@ class ConfigStoreTest(unittest.TestCase):
                         {"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"},
                         {"id": "other", "provider_family": "ollama", "provider_alias": "other", "model": "qwen"},
                     ],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token", "device_id": "PROFILE_DEVICE"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw", "device_id": "PROFILE_DEVICE"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -294,6 +294,60 @@ class ConfigStoreTest(unittest.TestCase):
         self.assertNotIn("device_id", agent["matrix"])
         self.assertEqual(result["previous_device_id"], "")
 
+    def test_matrix_login_mode_normalizes_exclusive_credentials(self) -> None:
+        self.store.update_full_config(
+            self.modular_payload({
+                "profiles": {
+                    "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
+                    "matrix": [
+                        {
+                            "id": "account",
+                            "homeserver": "https://matrix.example.com",
+                            "login_mode": "account",
+                            "user_id": "@agent:matrix.example.com",
+                            "password": "pw",
+                            "access_token": "token",
+                            "device_id": "DEVICE",
+                        },
+                        {
+                            "id": "token",
+                            "homeserver": "https://matrix.example.com",
+                            "login_mode": "token",
+                            "user_id": "@agent:matrix.example.com",
+                            "password": "pw",
+                            "recovery_key": "key",
+                            "access_token": "token",
+                            "device_id": "DEVICE",
+                        },
+                        {
+                            "id": "advanced",
+                            "homeserver": "https://matrix.example.com",
+                            "login_mode": "advanced",
+                            "user_id": "@agent:matrix.example.com",
+                            "password": "pw",
+                            "recovery_key": "key",
+                            "access_token": "token",
+                            "device_id": "DEVICE",
+                        },
+                    ],
+                    "mcp": [],
+                },
+                "agents": [],
+            })
+        )
+
+        profiles = {item["id"]: item for item in self.store.load()["profiles"]["matrix"]}
+
+        self.assertEqual(profiles["account"]["login_mode"], "account")
+        self.assertNotIn("access_token", profiles["account"])
+        self.assertNotIn("device_id", profiles["account"])
+        self.assertEqual(profiles["token"]["login_mode"], "token")
+        self.assertNotIn("password", profiles["token"])
+        self.assertNotIn("recovery_key", profiles["token"])
+        self.assertEqual(profiles["advanced"]["login_mode"], "advanced")
+        self.assertEqual(profiles["advanced"]["password"], "pw")
+        self.assertEqual(profiles["advanced"]["access_token"], "token")
+
     def test_apply_prompt_template_writes_workspace_files(self) -> None:
         self.store.update_full_config(
             self.modular_payload({
@@ -303,7 +357,7 @@ class ConfigStoreTest(unittest.TestCase):
                         {"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"},
                         {"id": "other", "provider_family": "ollama", "provider_alias": "other", "model": "qwen"},
                     ],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -336,7 +390,7 @@ class ConfigStoreTest(unittest.TestCase):
                 "prompt_templates": [{"id": "default", "files": {"AGENTS.md": ""}}],
                 "profiles": {
                     "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -367,7 +421,7 @@ class ConfigStoreTest(unittest.TestCase):
                 "prompt_templates": [{"id": "default", "files": {"AGENTS.md": "hello"}}],
                 "profiles": {
                     "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -421,7 +475,7 @@ class ConfigStoreTest(unittest.TestCase):
                 "prompt_templates": [{"id": "default", "files": {"AGENTS.md": "hello"}}],
                 "profiles": {
                     "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -452,7 +506,7 @@ class ConfigStoreTest(unittest.TestCase):
                 "prompt_templates": [{"id": "default", "files": {"AGENTS.md": "hello"}}],
                 "profiles": {
                     "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [],
@@ -489,7 +543,7 @@ class ConfigStoreTest(unittest.TestCase):
                         {"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"},
                         {"id": "other", "provider_family": "ollama", "provider_alias": "other", "model": "qwen"},
                     ],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -542,7 +596,7 @@ class ConfigStoreTest(unittest.TestCase):
                             {"id": "deepseek-text", "provider_family": "openai", "provider_alias": "main", "model": "gpt-4.1"},
                             {"id": "unused", "provider_family": "openai", "provider_alias": "main", "model": "gpt-4.1"},
                         ],
-                        "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                        "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                         "mcp": [],
                     },
                     "agents": [
@@ -578,7 +632,7 @@ class ConfigStoreTest(unittest.TestCase):
                 "prompt_templates": [{"id": "default", "files": {"AGENTS.md": "hello"}}],
                 "profiles": {
                     "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -626,7 +680,7 @@ class ConfigStoreTest(unittest.TestCase):
                 "paths": {"instances_dir": str(instances_dir)},
                 "profiles": {
                     "llm": [{"id": "llm", "provider_family": "ollama", "provider_alias": "local", "model": "qwen"}],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "password": "pw"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -652,7 +706,7 @@ class ConfigStoreTest(unittest.TestCase):
             self.modular_payload({
                 "profiles": {
                     "llm": [{"id": "remote", "provider_family": "openai", "provider_alias": "main", "model": "gpt", "api_key": "secret-key"}],
-                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "access_token": "matrix-token"}],
+                    "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "login_mode": "token", "device_id": "DEVICE", "access_token": "matrix-token"}],
                     "mcp": [],
                 },
                 "agents": [
@@ -1307,6 +1361,8 @@ class AgentRendererTest(unittest.TestCase):
     def test_export_agent_redacts_preview_when_requested(self) -> None:
         config = copy_config(self.config)
         config["profiles"]["llm"][0]["api_key"] = "secret-key"
+        config["profiles"]["matrix"][0]["login_mode"] = "token"
+        config["profiles"]["matrix"][0]["device_id"] = "DEVICE"
         config["profiles"]["matrix"][0]["access_token"] = "matrix-token"
 
         exported = self.renderer.export_agent(config, self.agent, include_secrets=False)
@@ -1350,7 +1406,7 @@ class ConfigValidatorTest(unittest.TestCase):
         self.assertIn("invalid_host_port", codes)
         self.assertIn("missing_model", codes)
         self.assertIn("missing_matrix_homeserver", codes)
-        self.assertIn("missing_matrix_credentials", codes)
+        self.assertIn("missing_matrix_password", codes)
         self.assertIn("missing_matrix_external_peers", codes)
 
     def test_start_validation_raises_structured_error(self) -> None:
@@ -1364,6 +1420,31 @@ class ConfigValidatorTest(unittest.TestCase):
             self.validator.ensure_valid_for_start(config, config["agents"][0])
 
         self.assertEqual(context.exception.code, "validation_failed")
+
+    def test_validator_requires_token_login_credentials(self) -> None:
+        config = {
+            "paths": {"instances_dir": str(self.root / "instances")},
+            "profiles": {
+                "llm": [{"id": "local", "provider_family": "ollama", "provider_alias": "main", "model": "qwen"}],
+                "matrix": [{"id": "matrix", "homeserver": "https://matrix.example.com", "login_mode": "token"}],
+                "mcp": [],
+            },
+            "agents": [
+                {
+                    "id": "agent1",
+                    "host_port": 42641,
+                    "llm_profile": "local",
+                    "matrix_profile": "matrix",
+                    "matrix": {"external_peers": ["@you:matrix.example.com"]},
+                }
+            ],
+        }
+
+        result = self.validator.validate_config(config)
+        codes = {entry["code"] for entry in result["errors"]}
+
+        self.assertIn("missing_matrix_device_id", codes)
+        self.assertIn("missing_matrix_access_token", codes)
 
     def test_validator_checks_vision_config(self) -> None:
         config = {

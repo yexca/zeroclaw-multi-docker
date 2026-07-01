@@ -813,6 +813,8 @@ class ConfigStore:
             "matrix": normalize_collection(profiles.get("matrix")),
             "mcp": normalize_collection(profiles.get("mcp")),
         }
+        for profile in config["profiles"]["matrix"]:
+            self._normalize_matrix_login_profile(profile)
         config[PROMPT_TEMPLATE_KEY] = normalize_collection(config.get(PROMPT_TEMPLATE_KEY))
         config[PROMPT_TEMPLATE_KEY] = self._normalize_prompt_templates(config[PROMPT_TEMPLATE_KEY])
         config[SKILL_BUNDLE_KEY] = self._normalize_skill_bundles(config.get(SKILL_BUNDLE_KEY))
@@ -832,6 +834,20 @@ class ConfigStore:
         matrix.pop("device_id", None)
         if not matrix:
             agent.pop("matrix", None)
+
+    def _normalize_matrix_login_profile(self, profile: dict[str, Any]) -> None:
+        mode = str(profile.get("login_mode") or "").strip().lower()
+        if mode not in {"account", "token", "advanced"}:
+            mode = "token" if str(profile.get("access_token") or "").strip() else "account"
+        profile["login_mode"] = mode
+        if mode == "advanced":
+            return
+        if mode == "token":
+            profile.pop("password", None)
+            profile.pop("recovery_key", None)
+        else:
+            profile.pop("access_token", None)
+            profile.pop("device_id", None)
 
     def _normalize_prompt_templates(self, templates: list[dict[str, Any]]) -> list[dict[str, Any]]:
         defaults = self._default_prompt_template_files()
@@ -977,4 +993,3 @@ def redact(value: Any) -> Any:
 
 def to_json(data: Any) -> str:
     return json.dumps(redact(data), sort_keys=True, ensure_ascii=True)
-

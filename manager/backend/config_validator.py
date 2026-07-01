@@ -85,10 +85,22 @@ class ConfigValidator:
 
         if not string_value(env.get("MATRIX_HOMESERVER")):
             errors.append(issue("missing_matrix_homeserver", f"{prefix}.matrix.homeserver", "Matrix homeserver must be non-empty."))
-        if not string_value(env.get("MATRIX_USER_ID")):
-            errors.append(issue("missing_matrix_user_id", f"{prefix}.matrix.user_id", "Matrix user id must be non-empty."))
-        if not string_value(env.get("ZEROCLAW_channels__matrix__home__access_token")) and not string_value(env.get("ZEROCLAW_channels__matrix__home__password")):
-            errors.append(issue("missing_matrix_credentials", f"{prefix}.matrix", "Matrix access token or password must be configured."))
+        matrix_login_mode = str((resolved.get("matrix") or {}).get("login_mode") or "").strip().lower()
+        if matrix_login_mode == "token":
+            if not string_value(env.get("MATRIX_DEVICE_ID")):
+                errors.append(issue("missing_matrix_device_id", f"{prefix}.matrix.device_id", "Matrix device id must be non-empty for token login."))
+            if not string_value(env.get("ZEROCLAW_channels__matrix__home__access_token")):
+                errors.append(issue("missing_matrix_access_token", f"{prefix}.matrix.access_token", "Matrix access token must be configured for token login."))
+        elif matrix_login_mode == "advanced":
+            has_account = string_value(env.get("MATRIX_USER_ID")) and string_value(env.get("ZEROCLAW_channels__matrix__home__password"))
+            has_token = string_value(env.get("MATRIX_DEVICE_ID")) and string_value(env.get("ZEROCLAW_channels__matrix__home__access_token"))
+            if not has_account and not has_token:
+                errors.append(issue("missing_matrix_credentials", f"{prefix}.matrix", "Matrix advanced login requires either user id + password or device id + access token."))
+        else:
+            if not string_value(env.get("MATRIX_USER_ID")):
+                errors.append(issue("missing_matrix_user_id", f"{prefix}.matrix.user_id", "Matrix user id must be non-empty for account login."))
+            if not string_value(env.get("ZEROCLAW_channels__matrix__home__password")):
+                errors.append(issue("missing_matrix_password", f"{prefix}.matrix.password", "Matrix password must be configured for account login."))
         if not string_value(env.get("MATRIX_EXTERNAL_PEERS")):
             errors.append(issue("missing_matrix_external_peers", f"{prefix}.matrix.external_peers", "Matrix external peers must be non-empty."))
 

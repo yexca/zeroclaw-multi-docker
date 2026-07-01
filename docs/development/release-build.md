@@ -56,11 +56,11 @@ locale JSON, and frontend foundation tests.
 ## Published Images
 
 The release workflow publishes Docker images when a tag matching `v*.*.*` is
-pushed. For example, tag `v0.2.0` publishes:
+pushed. For example, tag `v0.2.1` publishes:
 
-- `ghcr.io/yexca/zeroclaw-dockyard:v0.2.0`
+- `ghcr.io/yexca/zeroclaw-dockyard:v0.2.1`
 - `ghcr.io/yexca/zeroclaw-dockyard:latest`
-- `yexca/zeroclaw-dockyard:v0.2.0`
+- `yexca/zeroclaw-dockyard:v0.2.1`
 - `yexca/zeroclaw-dockyard:latest`
 
 GitHub Container Registry uses the repository `GITHUB_TOKEN`. Docker Hub uses

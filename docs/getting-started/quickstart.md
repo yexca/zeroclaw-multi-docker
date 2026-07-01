@@ -21,7 +21,7 @@ Open:
 http://127.0.0.1:7652
 ```
 
-By default Compose uses the published `yexca/zeroclaw-dockyard:v0.2.0`
+By default Compose uses the published `yexca/zeroclaw-dockyard:v0.2.1`
 manager image. Developers who want to build from the local source tree can run
 `docker compose up -d --build`.
 

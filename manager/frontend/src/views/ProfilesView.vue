@@ -86,10 +86,16 @@
           </template>
           <template v-else-if="kind === 'matrix'">
             <FormField v-model="draft.homeserver" :label="t('fields.homeserver')" :error="formErrors.homeserver" required />
-            <FormField v-model="draft.user_id" :label="t('fields.matrixUser')" :error="formErrors.user_id" required />
-            <FormField v-model="draft.device_id" :label="t('fields.deviceId')" />
-            <FormField v-model="draft.password" :label="t('fields.password')" type="password" :error="formErrors.password" />
-            <FormField v-model="draft.recovery_key" :label="t('fields.recoveryKey')" type="password" />
+            <FormField v-model="matrixLoginMode" :label="t('fields.matrixLoginMode')" :options="matrixLoginModeOptions" />
+            <template v-if="matrixLoginMode === 'token' || matrixLoginMode === 'advanced'">
+              <FormField v-model="draft.device_id" :label="t('fields.deviceId')" :error="formErrors.device_id" required />
+              <FormField v-model="draft.access_token" :label="t('fields.accessToken')" type="password" :error="formErrors.access_token" required />
+            </template>
+            <template v-if="matrixLoginMode === 'account' || matrixLoginMode === 'advanced'">
+              <FormField v-model="draft.user_id" :label="t('fields.matrixUser')" :error="formErrors.user_id" required />
+              <FormField v-model="draft.password" :label="t('fields.password')" type="password" :error="formErrors.password" required />
+              <FormField v-model="draft.recovery_key" :label="t('fields.recoveryKey')" type="password" />
+            </template>
             <FormField v-model="allowedRooms" :label="t('fields.allowedRooms')" textarea wide />
             <details class="advanced-disclosure form-field--wide" open>
               <summary>{{ t("fields.matrixBehavior") }}</summary>
@@ -101,7 +107,6 @@
                 <FormField v-model="draft.stream_mode" :label="t('fields.streamMode')" :options="streamOptions" />
                 <FormField v-model="draft.multi_message_delay_ms" :label="t('fields.multiMessageDelayMs')" type="number" min="0" :error="formErrors.multi_message_delay_ms" />
                 <FormField v-model="draft.channel_debounce_ms" :label="t('fields.channelDebounceMs')" type="number" min="0" :error="formErrors.channel_debounce_ms" />
-                <FormField v-model="draft.access_token" :label="t('fields.accessToken')" type="password" :error="formErrors.access_token" wide />
               </div>
             </details>
             <details class="advanced-disclosure form-field--wide">
@@ -186,6 +191,11 @@ const streamOptions = [
   { label: t("profiles.stream.edit"), value: "edit" },
   { label: t("common.disabled"), value: "disabled" }
 ];
+const matrixLoginModeOptions = [
+  { label: t("matrix.login.account"), value: "account" },
+  { label: t("matrix.login.token"), value: "token" },
+  { label: t("matrix.login.advanced"), value: "advanced" }
+];
 
 const kind = computed(() => route.params.kind || "llm");
 const profiles = computed(() => store.profiles[kind.value] || []);
@@ -251,6 +261,7 @@ async function save() {
   if (!validateProfileForm()) return;
   const payload = clone(draft.value);
   delete payload._draft;
+  if (kind.value === "matrix") normalizeMatrixLoginPayload(payload);
   try {
     await store.saveProfile(kind.value, payload);
     selectedId.value = itemId(payload);
@@ -327,7 +338,22 @@ function validateProfileForm() {
   if (kind.value === "matrix") {
     validateRequired(errors, "homeserver", draft.value?.homeserver, t("messages.requiredField", { field: label("homeserver") }));
     validateHttpUrl(errors, "homeserver", draft.value?.homeserver, t("messages.invalidUrlField", { field: label("homeserver") }));
-    validateRequired(errors, "user_id", draft.value?.user_id, t("messages.requiredField", { field: label("matrixUser") }));
+    if (matrixLoginMode.value === "token") {
+      validateRequired(errors, "device_id", draft.value?.device_id, t("messages.requiredField", { field: label("deviceId") }));
+      validateRequired(errors, "access_token", draft.value?.access_token, t("messages.requiredField", { field: label("accessToken") }));
+    } else if (matrixLoginMode.value === "advanced") {
+      const hasAccount = Boolean(draft.value?.user_id && draft.value?.password);
+      const hasToken = Boolean(draft.value?.device_id && draft.value?.access_token);
+      if (!hasAccount && !hasToken) {
+        validateRequired(errors, "user_id", draft.value?.user_id, t("messages.requiredField", { field: label("matrixUser") }));
+        validateRequired(errors, "password", draft.value?.password, t("messages.requiredField", { field: label("password") }));
+        validateRequired(errors, "device_id", draft.value?.device_id, t("messages.requiredField", { field: label("deviceId") }));
+        validateRequired(errors, "access_token", draft.value?.access_token, t("messages.requiredField", { field: label("accessToken") }));
+      }
+    } else {
+      validateRequired(errors, "user_id", draft.value?.user_id, t("messages.requiredField", { field: label("matrixUser") }));
+      validateRequired(errors, "password", draft.value?.password, t("messages.requiredField", { field: label("password") }));
+    }
     for (const key of [
       "multi_message_delay_ms",
       "channel_debounce_ms",
@@ -406,6 +432,32 @@ const excludedTools = computed({
   get: () => (draft.value?.excluded_tools || []).join("\n"),
   set: (value) => (draft.value.excluded_tools = lines(value))
 });
+const matrixLoginMode = computed({
+  get: () => draft.value?.login_mode || inferMatrixLoginMode(draft.value),
+  set: (value) => {
+    if (!draft.value) return;
+    draft.value.login_mode = ["account", "token", "advanced"].includes(value) ? value : "account";
+    normalizeMatrixLoginPayload(draft.value);
+  }
+});
+
+function inferMatrixLoginMode(profile) {
+  if (profile?.login_mode === "advanced") return "advanced";
+  return profile?.access_token || profile?.login_mode === "token" ? "token" : "account";
+}
+
+function normalizeMatrixLoginPayload(profile) {
+  const mode = ["account", "token", "advanced"].includes(profile.login_mode) ? profile.login_mode : "account";
+  profile.login_mode = mode;
+  if (mode === "advanced") return;
+  if (mode === "token") {
+    delete profile.password;
+    delete profile.recovery_key;
+  } else {
+    delete profile.access_token;
+    delete profile.device_id;
+  }
+}
 
 async function testProfile() {
   const payload = clone(draft.value);

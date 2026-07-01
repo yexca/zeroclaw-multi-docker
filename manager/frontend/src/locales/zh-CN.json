@@ -157,7 +157,12 @@
   "matrix": {
     "title": "Matrix 配置",
     "subtitle": "共享 homeserver、房间、线程、反应和流式设置。",
-    "empty": "创建或选择一个 Matrix 配置。"
+    "empty": "创建或选择一个 Matrix 配置。",
+    "login": {
+      "account": "账号密码",
+      "token": "访问令牌",
+      "advanced": "高级"
+    }
   },
   "mcp": {
     "title": "MCP 配置",
@@ -331,6 +336,7 @@
     "promptTemplate": "提示词模板",
     "templateApplyMode": "模板应用方式",
     "matrixUser": "Matrix 用户",
+    "matrixLoginMode": "登录方式",
     "deviceId": "设备 ID",
     "externalPeers": "外部会话",
     "accessToken": "访问令牌",

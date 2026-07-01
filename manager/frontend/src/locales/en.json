@@ -162,7 +162,12 @@
   "matrix": {
     "title": "Matrix Profiles",
     "subtitle": "Shared homeserver, room, thread, reaction, and stream settings.",
-    "empty": "Create or select a Matrix profile."
+    "empty": "Create or select a Matrix profile.",
+    "login": {
+      "account": "Account password",
+      "token": "Access token",
+      "advanced": "Advanced"
+    }
   },
   "mcp": {
     "title": "MCP Profiles",
@@ -416,6 +421,7 @@
     "supportFileContent": "Support file content",
     "templateApplyMode": "Template apply mode",
     "matrixUser": "Matrix user",
+    "matrixLoginMode": "Login method",
     "deviceId": "Device ID",
     "externalPeers": "External peers",
     "accessToken": "Access token",
