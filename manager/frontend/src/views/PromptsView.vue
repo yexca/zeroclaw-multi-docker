@@ -126,6 +126,7 @@ const { t } = useI18n();
 const dialog = useDialog();
 const PROMPT_SYSTEM_FILES = ["AGENTS.md", "SOUL.md", "TOOLS.md", "IDENTITY.md", "USER.md", "MEMORY.md"];
 const TEMPLATE_FILES = [...PROMPT_SYSTEM_FILES, "HEARTBEAT.md", "PROACTIVE.md"];
+const TEMPLATE_FILE_ORDER = new Map(TEMPLATE_FILES.map((file, index) => [file, index]));
 const EMPTY_TEMPLATE_FILES = Object.fromEntries(TEMPLATE_FILES.map((file) => [file, ""]));
 const selectedId = ref("");
 const draft = ref(null);
@@ -144,7 +145,7 @@ const aiFill = ref({
   reference_files: []
 });
 
-const fileNames = computed(() => Object.keys(draft.value?.files || {}));
+const fileNames = computed(() => sortedTemplateFiles(Object.keys(draft.value?.files || {})));
 const llmOptions = computed(() => store.profiles.llm.map((profile) => ({ label: itemId(profile), value: itemId(profile) })));
 const selectedFileStats = computed(() => {
   const content = draft.value?.files?.[selectedFile.value] || "";
@@ -222,7 +223,7 @@ function duplicateTemplate() {
   selectedId.value = "";
   replaceQueryValue("template", "");
   draft.value = copy;
-  selectedFile.value = Object.keys(copy.files || {})[0] || "";
+  selectedFile.value = sortedTemplateFiles(Object.keys(copy.files || {}))[0] || "";
   resetAiFill();
 }
 
@@ -290,7 +291,7 @@ async function deleteFile() {
   if (!selectedFile.value || protectedFile(selectedFile.value)) return;
   if (!(await dialog.confirm(t("confirm.deleteTemplateFileNamed", { file: selectedFile.value })))) return;
   delete draft.value.files[selectedFile.value];
-  selectedFile.value = Object.keys(draft.value.files || {})[0] || "";
+  selectedFile.value = sortedTemplateFiles(Object.keys(draft.value.files || {}))[0] || "";
   replaceQueryValue("file", selectedFile.value);
   resetAiFill();
 }
@@ -382,6 +383,7 @@ function ensureTemplateFiles(template) {
   for (const file of TEMPLATE_FILES) {
     if (!(file in template.files)) template.files[file] = "";
   }
+  template.files = Object.fromEntries(sortedTemplateFiles(Object.keys(template.files)).map((file) => [file, template.files[file]]));
 }
 
 function displayFileName(file) {
@@ -398,7 +400,16 @@ function initialSelectedFile(template) {
   const storedFile = localStorage.getItem(TEMPLATE_FILE_SELECTION_STORAGE_KEY) || "";
   if (routeFile && files[routeFile] !== undefined) return routeFile;
   if (storedFile && files[storedFile] !== undefined) return storedFile;
-  return Object.keys(files)[0] || "";
+  return sortedTemplateFiles(Object.keys(files))[0] || "";
+}
+
+function sortedTemplateFiles(files) {
+  return [...files].sort((left, right) => {
+    const leftRank = TEMPLATE_FILE_ORDER.has(left) ? TEMPLATE_FILE_ORDER.get(left) : TEMPLATE_FILES.length;
+    const rightRank = TEMPLATE_FILE_ORDER.has(right) ? TEMPLATE_FILE_ORDER.get(right) : TEMPLATE_FILES.length;
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    return left.localeCompare(right);
+  });
 }
 
 function queryString(value) {

@@ -833,7 +833,10 @@ class ConfigStore:
             for filename in defaults:
                 if filename not in normalized_files:
                     normalized_files[filename] = ""
-            template["files"] = normalized_files
+            template["files"] = {
+                **{filename: normalized_files[filename] for filename in defaults if filename in normalized_files},
+                **{filename: normalized_files[filename] for filename in sorted(normalized_files) if filename not in defaults},
+            }
         return templates
 
     def prompt_template_examples(self) -> dict[str, str]:
