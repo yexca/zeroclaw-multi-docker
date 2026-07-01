@@ -72,5 +72,7 @@ async function refreshImages() {
   }
 }
 
-onMounted(() => refreshImages());
+onMounted(() => {
+  if (!store.images) refreshImages();
+});
 </script>

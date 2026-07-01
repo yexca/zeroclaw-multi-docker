@@ -141,7 +141,7 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { PlugZap, Plus, Save, Trash2 } from "@lucide/vue";
 import FormField from "../components/FormField.vue";
 import JsonEditor from "../components/JsonEditor.vue";
@@ -165,6 +165,7 @@ import { issueMessages, mapIssuesToProfileForm, validationIssuesFromError } from
 import { useManagerStore } from "../stores/manager.js";
 
 const route = useRoute();
+const router = useRouter();
 const store = useManagerStore();
 const { t } = useI18n();
 const dialog = useDialog();
@@ -175,6 +176,7 @@ const testingProfile = ref(false);
 const formErrors = ref({});
 const formMessage = ref("");
 const advancedJsonError = ref("");
+const PROFILE_SELECTION_STORAGE_PREFIX = "zeroclaw.webui.selected.profile.";
 const wireOptions = [
   { label: t("profiles.wire.chatCompletions"), value: "chat_completions" },
   { label: t("profiles.wire.responses"), value: "responses" }
@@ -204,9 +206,11 @@ watch(kind, () => {
 watch(
   profiles,
   (items) => {
-    const routeId = String(route.query.id || "");
-    if (routeId && items.some((profile) => itemId(profile) === routeId) && selectedId.value !== routeId) {
-      selectProfile(items.find((profile) => itemId(profile) === routeId));
+    const routeId = queryString(route.query.id);
+    const storedId = localStorage.getItem(profileSelectionStorageKey()) || "";
+    const targetId = routeId || storedId;
+    if (targetId && items.some((profile) => itemId(profile) === targetId) && selectedId.value !== targetId) {
+      selectProfile(items.find((profile) => itemId(profile) === targetId), { syncRoute: !routeId });
       return;
     }
     if (!draft.value && items.length) selectProfile(items[0]);
@@ -217,14 +221,16 @@ watch(
 watch(
   () => route.query.id,
   (profileId) => {
-    const profile = profiles.value.find((item) => itemId(item) === String(profileId || ""));
-    if (profile) selectProfile(profile);
+    const profile = profiles.value.find((item) => itemId(item) === queryString(profileId));
+    if (profile) selectProfile(profile, { syncRoute: false });
   }
 );
 
-function selectProfile(profile) {
+function selectProfile(profile, options = {}) {
   selectedId.value = itemId(profile);
   draft.value = clone(profile);
+  localStorage.setItem(profileSelectionStorageKey(), selectedId.value);
+  if (options.syncRoute !== false) replaceQueryValue("id", selectedId.value);
   testingProfile.value = false;
   formErrors.value = {};
   formMessage.value = "";
@@ -234,6 +240,7 @@ function selectProfile(profile) {
 function createProfile() {
   draft.value = { ...store.newProfile(kind.value), _draft: true };
   selectedId.value = "";
+  replaceQueryValue("id", "");
   testingProfile.value = false;
   formErrors.value = {};
   formMessage.value = "";
@@ -248,6 +255,8 @@ async function save() {
     await store.saveProfile(kind.value, payload);
     selectedId.value = itemId(payload);
     draft.value = payload;
+    localStorage.setItem(profileSelectionStorageKey(), selectedId.value);
+    replaceQueryValue("id", selectedId.value);
     formErrors.value = {};
     formMessage.value = "";
   } catch (error) {
@@ -356,6 +365,8 @@ function camelField(key) {
 async function remove() {
   if (!draft.value?._draft && await dialog.confirm(t("confirm.deleteProfileNamed", { kind: t(`${kind.value}.title`), id: itemId(draft.value) }))) {
     await store.deleteProfile(kind.value, itemId(draft.value));
+    localStorage.removeItem(profileSelectionStorageKey());
+    replaceQueryValue("id", "");
     draft.value = null;
     selectedId.value = "";
   }
@@ -411,6 +422,21 @@ async function testProfile() {
   } finally {
     testingProfile.value = false;
   }
+}
+
+function profileSelectionStorageKey() {
+  return `${PROFILE_SELECTION_STORAGE_PREFIX}${kind.value}`;
+}
+
+function queryString(value) {
+  return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+}
+
+function replaceQueryValue(key, value) {
+  const query = { ...route.query };
+  if (value) query[key] = value;
+  else delete query[key];
+  router.replace({ query }).catch(() => {});
 }
 
 function profileUsage(profileId) {

@@ -168,6 +168,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { FileCode2, FilePlus2, FileText, Folder, Image, Package, Plus, Save, Settings2, Terminal, Trash2, Upload, Wrench } from "@lucide/vue";
 import FormField from "../components/FormField.vue";
 import PageHeader from "../components/PageHeader.vue";
@@ -179,10 +180,13 @@ import { clone, itemId } from "../lib/api.js";
 import { firstError, validateRelativeDirectory, validateRequired, validateSkillBundleId, validateSupportPath, valueExists } from "../lib/validation.js";
 import { useManagerStore } from "../stores/manager.js";
 
+const route = useRoute();
+const router = useRouter();
 const store = useManagerStore();
 const { t } = useI18n();
 const dialog = useDialog();
 const skills = reactive({});
+const SKILLS_SELECTION_STORAGE_KEY = "zeroclaw.webui.selected.skills";
 const bundles = computed(() => store.skillBundles);
 const supportTypes = ["references", "scripts", "assets"];
 const selectedNode = ref({ type: "runtime" });
@@ -242,9 +246,16 @@ watch(
   bundles,
   async (rows) => {
     await Promise.all(rows.map((bundle) => loadSkillsForBundle(bundle.id)));
-    if (!selectedBundleId.value && rows.length) selectBundle(rows[0]);
+    if (!(await restoreSelection(rows)) && !selectedBundleId.value && rows.length) selectBundle(rows[0]);
   },
   { immediate: true }
+);
+
+watch(
+  () => route.query,
+  async () => {
+    await restoreSelection(bundles.value, { preferRoute: true });
+  }
 );
 
 function lines(value) {
@@ -299,6 +310,75 @@ function clearMessages() {
   supportMessage.value = "";
 }
 
+function queryString(value) {
+  return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+}
+
+function selectionFromRoute() {
+  return {
+    node: queryString(route.query.node),
+    bundle: queryString(route.query.bundle),
+    skill: queryString(route.query.skill),
+    type: queryString(route.query.type),
+    file: queryString(route.query.file)
+  };
+}
+
+function storedSelection() {
+  try {
+    return JSON.parse(localStorage.getItem(SKILLS_SELECTION_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function selectionHasRouteTarget(selection) {
+  return Boolean(selection.node || selection.bundle || selection.skill || selection.type || selection.file);
+}
+
+function persistSelection(selection, options = {}) {
+  localStorage.setItem(SKILLS_SELECTION_STORAGE_KEY, JSON.stringify(selection));
+  if (options.syncRoute === false) return;
+  const query = { ...route.query };
+  for (const key of ["node", "bundle", "skill", "type", "file"]) delete query[key];
+  for (const [key, value] of Object.entries(selection)) {
+    if (value) query[key] = value;
+  }
+  router.replace({ query }).catch(() => {});
+}
+
+async function restoreSelection(rows, options = {}) {
+  const routeSelection = selectionFromRoute();
+  const selection = options.preferRoute || selectionHasRouteTarget(routeSelection) ? routeSelection : storedSelection();
+  const node = selection.node || "";
+  if (node === "runtime") {
+    selectRuntime({ syncRoute: !options.preferRoute });
+    return true;
+  }
+  if (!selection.bundle || !rows.some((bundle) => bundle.id === selection.bundle)) return false;
+  await loadSkillsForBundle(selection.bundle);
+  if (!selection.skill) {
+    selectBundle(rows.find((bundle) => bundle.id === selection.bundle), { syncRoute: !options.preferRoute });
+    return true;
+  }
+  const skillExists = bundleSkills(selection.bundle).some((skill) => skill.name === selection.skill);
+  if (!skillExists) return false;
+  if (node === "support-group" && selection.type) {
+    selectSupportGroup(selection.bundle, selection.skill, selection.type, { syncRoute: !options.preferRoute });
+    return true;
+  }
+  if (node === "support-file" && selection.file) {
+    await loadSupportFile(selection.bundle, selection.skill, selection.file, { syncRoute: !options.preferRoute });
+    return true;
+  }
+  if (node === "skill") {
+    await selectSkill(selection.bundle, selection.skill, { syncRoute: !options.preferRoute });
+    return true;
+  }
+  await selectSkillDoc(selection.bundle, selection.skill, { syncRoute: !options.preferRoute });
+  return true;
+}
+
 async function loadSkillsForBundle(bundleId) {
   if (!bundleId) return;
   const result = await store.listSkills(bundleId);
@@ -315,14 +395,15 @@ async function loadSkillsForBundle(bundleId) {
   );
 }
 
-function selectRuntime() {
+function selectRuntime(options = {}) {
   selectedNode.value = { type: "runtime" };
   selectedBundleId.value = "";
   selectedSkillName.value = "";
   clearMessages();
+  persistSelection({ node: "runtime" }, options);
 }
 
-function selectBundle(bundle) {
+function selectBundle(bundle, options = {}) {
   selectedNode.value = { type: "bundle", bundleId: bundle.id };
   selectedBundleId.value = bundle.id;
   selectedSkillName.value = "";
@@ -332,20 +413,23 @@ function selectBundle(bundle) {
   supportFileContent.value = "";
   clearMessages();
   loadSkillsForBundle(bundle.id);
+  persistSelection({ node: "bundle", bundle: bundle.id }, options);
 }
 
-async function selectSkill(bundleId, skillName) {
+async function selectSkill(bundleId, skillName, options = {}) {
   selectedNode.value = { type: "skill", bundleId, skillName };
   selectedBundleId.value = bundleId;
   selectedSkillName.value = skillName;
   await loadSkillDraft(bundleId, skillName);
+  persistSelection({ node: "skill", bundle: bundleId, skill: skillName }, options);
 }
 
-async function selectSkillDoc(bundleId, skillName) {
+async function selectSkillDoc(bundleId, skillName, options = {}) {
   selectedNode.value = { type: "skill-doc", bundleId, skillName };
   selectedBundleId.value = bundleId;
   selectedSkillName.value = skillName;
   await loadSkillDraft(bundleId, skillName);
+  persistSelection({ node: "skill-doc", bundle: bundleId, skill: skillName }, options);
 }
 
 async function loadSkillDraft(bundleId, skillName) {
@@ -364,15 +448,16 @@ async function loadSkillDraft(bundleId, skillName) {
   supportFileContent.value = "";
 }
 
-function selectSupportGroup(bundleId, skillName, type) {
+function selectSupportGroup(bundleId, skillName, type, options = {}) {
   selectedNode.value = { type: "support-group", bundleId, skillName, supportType: type };
   selectedBundleId.value = bundleId;
   selectedSkillName.value = skillName;
   supportType.value = type;
   clearMessages();
+  persistSelection({ node: "support-group", bundle: bundleId, skill: skillName, type }, options);
 }
 
-async function loadSupportFile(bundleId, skillName, path) {
+async function loadSupportFile(bundleId, skillName, path, options = {}) {
   selectedNode.value = { type: "support-file", bundleId, skillName, path };
   selectedBundleId.value = bundleId;
   selectedSkillName.value = skillName;
@@ -385,6 +470,7 @@ async function loadSupportFile(bundleId, skillName, path) {
   } catch (error) {
     supportFileContent.value = t("skills.unableToPreview", { error: error.message || error });
   }
+  persistSelection({ node: "support-file", bundle: bundleId, skill: skillName, file: path }, options);
 }
 
 async function saveRuntime() {
@@ -401,6 +487,7 @@ function newBundle() {
   bundleDraft.value = { id: `bundle-${next}`, directory: `shared/skills/bundle-${next}`, include: [], exclude: [], _draft: true };
   skillDraft.value = null;
   clearMessages();
+  persistSelection({ node: "bundle" });
 }
 
 async function saveBundle() {
@@ -414,6 +501,7 @@ async function saveBundle() {
     bundleDraft.value = payload;
     await loadSkillsForBundle(payload.id);
     clearMessages();
+    persistSelection({ node: "bundle", bundle: payload.id });
   } catch (error) {
     bundleMessage.value = error.message || String(error);
   }
@@ -435,6 +523,8 @@ function validateBundleForm() {
 async function deleteBundle() {
   if (bundleDraft.value && await dialog.confirm(t("confirm.deleteSkillBundleNamed", { id: bundleDraft.value.id }))) {
     await store.deleteSkillBundle(bundleDraft.value.id);
+    localStorage.removeItem(SKILLS_SELECTION_STORAGE_KEY);
+    persistSelection({ node: "runtime" });
     bundleDraft.value = null;
     selectedBundleId.value = "";
     selectedNode.value = { type: "runtime" };
@@ -455,6 +545,7 @@ function newSkill() {
     _draft: true
   };
   clearMessages();
+  persistSelection({ node: "skill", bundle: selectedBundleId.value });
 }
 
 async function saveSkillDoc() {
@@ -502,6 +593,7 @@ async function deleteSkillDoc() {
   selectedSkillName.value = "";
   await loadSkillsForBundle(selectedBundleId.value);
   selectedNode.value = { type: "bundle", bundleId: selectedBundleId.value };
+  persistSelection({ node: "bundle", bundle: selectedBundleId.value });
 }
 
 function newSupportFile() {
@@ -513,6 +605,7 @@ function newSupportFile() {
   supportFileContent.value = "";
   selectedNode.value = { type: "support-file", bundleId: selectedBundleId.value, skillName: selectedSkillName.value, path: supportFilePath.value };
   clearMessages();
+  persistSelection({ node: "support-file", bundle: selectedBundleId.value, skill: selectedSkillName.value, file: supportFilePath.value });
 }
 
 async function saveSupportFile() {

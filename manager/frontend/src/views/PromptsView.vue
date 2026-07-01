@@ -106,6 +106,7 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Copy, FilePlus2, Files, Pencil, Plus, Save, Sparkles, Trash2 } from "@lucide/vue";
 import FormField from "../components/FormField.vue";
 import JsonEditor from "../components/JsonEditor.vue";
@@ -118,6 +119,8 @@ import { clone, itemId } from "../lib/api.js";
 import { firstError, validateId, validatePromptFileName, valueExists } from "../lib/validation.js";
 import { useManagerStore } from "../stores/manager.js";
 
+const route = useRoute();
+const router = useRouter();
 const store = useManagerStore();
 const { t } = useI18n();
 const dialog = useDialog();
@@ -130,6 +133,8 @@ const selectedFile = ref("");
 const formErrors = ref({});
 const formMessage = ref("");
 const exampleFiles = ref({});
+const TEMPLATE_SELECTION_STORAGE_KEY = "zeroclaw.webui.selected.template";
+const TEMPLATE_FILE_SELECTION_STORAGE_KEY = "zeroclaw.webui.selected.templateFile";
 const aiFillOpen = ref(false);
 const aiFill = ref({
   llm_profile: "",
@@ -150,16 +155,48 @@ const selectedFileStats = computed(() => {
 watch(
   () => store.templates,
   (templates) => {
+    const routeTemplate = queryString(route.query.template);
+    const storedTemplate = localStorage.getItem(TEMPLATE_SELECTION_STORAGE_KEY) || "";
+    const targetTemplate = routeTemplate || storedTemplate;
+    if (targetTemplate && templates.some((template) => itemId(template) === targetTemplate) && selectedId.value !== targetTemplate) {
+      selectTemplate(templates.find((template) => itemId(template) === targetTemplate), { syncRoute: !routeTemplate });
+      return;
+    }
     if (!draft.value && templates.length) selectTemplate(templates[0]);
   },
   { immediate: true }
 );
 
-function selectTemplate(template) {
+watch(
+  () => route.query.template,
+  (templateId) => {
+    const template = store.templates.find((item) => itemId(item) === queryString(templateId));
+    if (template) selectTemplate(template, { syncRoute: false });
+  }
+);
+
+watch(
+  () => route.query.file,
+  (file) => {
+    const filename = queryString(file);
+    if (filename && draft.value?.files?.[filename] !== undefined) selectedFile.value = filename;
+  }
+);
+
+watch(selectedFile, (file) => {
+  if (file) {
+    localStorage.setItem(TEMPLATE_FILE_SELECTION_STORAGE_KEY, file);
+    replaceQueryValue("file", file);
+  }
+});
+
+function selectTemplate(template, options = {}) {
   selectedId.value = itemId(template);
   draft.value = clone(template);
   ensureTemplateFiles(draft.value);
-  selectedFile.value = Object.keys(draft.value.files || {})[0] || "";
+  localStorage.setItem(TEMPLATE_SELECTION_STORAGE_KEY, selectedId.value);
+  if (options.syncRoute !== false) replaceQueryValue("template", selectedId.value);
+  selectedFile.value = initialSelectedFile(draft.value);
   formErrors.value = {};
   formMessage.value = "";
   resetAiFill();
@@ -169,6 +206,7 @@ function createTemplate() {
   const next = store.templates.length + 1;
   draft.value = { id: `template-${next}`, description: "", files: { ...EMPTY_TEMPLATE_FILES }, _draft: true };
   selectedId.value = "";
+  replaceQueryValue("template", "");
   selectedFile.value = "AGENTS.md";
   formErrors.value = {};
   formMessage.value = "";
@@ -182,6 +220,7 @@ function duplicateTemplate() {
   copy._draft = true;
   ensureTemplateFiles(copy);
   selectedId.value = "";
+  replaceQueryValue("template", "");
   draft.value = copy;
   selectedFile.value = Object.keys(copy.files || {})[0] || "";
   resetAiFill();
@@ -196,6 +235,8 @@ async function save() {
   await store.saveTemplate(payload);
   selectedId.value = payload.id;
   draft.value = payload;
+  localStorage.setItem(TEMPLATE_SELECTION_STORAGE_KEY, payload.id);
+  replaceQueryValue("template", payload.id);
   formErrors.value = {};
   formMessage.value = "";
 }
@@ -203,6 +244,10 @@ async function save() {
 async function deleteTemplate() {
   if (!draft.value || !(await dialog.confirm(t("confirm.deleteTemplateNamed", { id: itemId(draft.value) })))) return;
   await store.deleteTemplate(itemId(draft.value));
+  localStorage.removeItem(TEMPLATE_SELECTION_STORAGE_KEY);
+  localStorage.removeItem(TEMPLATE_FILE_SELECTION_STORAGE_KEY);
+  replaceQueryValue("template", "");
+  replaceQueryValue("file", "");
   draft.value = null;
   selectedId.value = "";
   selectedFile.value = "";
@@ -216,6 +261,7 @@ async function addFile() {
   if (!draft.value.files) draft.value.files = {};
   if (!(normalized in draft.value.files)) draft.value.files[normalized] = "";
   selectedFile.value = normalized;
+  replaceQueryValue("file", normalized);
   if (!aiFill.value.files.includes(normalized)) aiFill.value.files.push(normalized);
 }
 
@@ -234,6 +280,7 @@ async function renameFile() {
   draft.value.files[normalized] = draft.value.files[selectedFile.value] || "";
   delete draft.value.files[selectedFile.value];
   selectedFile.value = normalized;
+  replaceQueryValue("file", normalized);
   formErrors.value = { ...formErrors.value, files: "" };
   formMessage.value = firstError(formErrors.value) ? t("validation.fixFields") : "";
   resetAiFill();
@@ -244,6 +291,7 @@ async function deleteFile() {
   if (!(await dialog.confirm(t("confirm.deleteTemplateFileNamed", { file: selectedFile.value })))) return;
   delete draft.value.files[selectedFile.value];
   selectedFile.value = Object.keys(draft.value.files || {})[0] || "";
+  replaceQueryValue("file", selectedFile.value);
   resetAiFill();
 }
 
@@ -342,6 +390,26 @@ function displayFileName(file) {
 
 function fileEmpty(file) {
   return !String(draft.value?.files?.[file] || "").trim();
+}
+
+function initialSelectedFile(template) {
+  const files = template.files || {};
+  const routeFile = queryString(route.query.file);
+  const storedFile = localStorage.getItem(TEMPLATE_FILE_SELECTION_STORAGE_KEY) || "";
+  if (routeFile && files[routeFile] !== undefined) return routeFile;
+  if (storedFile && files[storedFile] !== undefined) return storedFile;
+  return Object.keys(files)[0] || "";
+}
+
+function queryString(value) {
+  return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+}
+
+function replaceQueryValue(key, value) {
+  const query = { ...route.query };
+  if (value) query[key] = value;
+  else delete query[key];
+  router.replace({ query }).catch(() => {});
 }
 
 function validateTemplateForm() {

@@ -97,7 +97,7 @@ const navItems = [
   { to: "/profiles/matrix", labelKey: "nav.matrix", icon: Network },
   { to: "/profiles/llm", labelKey: "nav.llm", icon: Cpu },
   { to: "/profiles/vision", labelKey: "nav.vision", icon: Sparkles },
-  { to: "/advanced/images", labelKey: "nav.advanced", icon: Settings2, activePrefix: "/advanced" }
+  { to: "/advanced", labelKey: "nav.advanced", icon: Settings2, activePrefix: "/advanced" }
 ];
 
 function navClass(item) {

@@ -119,7 +119,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   Activity,
   ArrowDownToLine,
@@ -150,6 +150,7 @@ import { issueMessages, mapIssuesToAgentForm, validationIssuesFromError } from "
 import { useManagerStore } from "../stores/manager.js";
 
 const route = useRoute();
+const router = useRouter();
 const store = useManagerStore();
 const { t } = useI18n();
 const dialog = useDialog();
@@ -167,6 +168,7 @@ const formMessage = ref("");
 const applyTemplateMode = ref("keep");
 const logTail = ref(200);
 const DEFAULT_ZEROCLAW_IMAGE = "ghcr.io/zeroclaw-labs/zeroclaw:v0.8.1-debian";
+const AGENT_SELECTION_STORAGE_KEY = "zeroclaw.webui.selected.agent";
 const templateModeOptions = [
   { label: t("templateApply.keep"), value: "keep" },
   { label: t("templateApply.missing"), value: "missing" },
@@ -206,9 +208,11 @@ const imagePreset = computed({
 watch(
   () => store.agents,
   (agents) => {
-    const routeAgent = String(route.query.agent || "");
-    if (routeAgent && agents.some((agent) => itemId(agent) === routeAgent) && selectedId.value !== routeAgent) {
-      selectAgent(agents.find((agent) => itemId(agent) === routeAgent));
+    const routeAgent = queryString(route.query.agent);
+    const storedAgent = localStorage.getItem(AGENT_SELECTION_STORAGE_KEY) || "";
+    const targetAgent = routeAgent || storedAgent;
+    if (targetAgent && agents.some((agent) => itemId(agent) === targetAgent) && selectedId.value !== targetAgent) {
+      selectAgent(agents.find((agent) => itemId(agent) === targetAgent), { syncRoute: !routeAgent });
       return;
     }
     if (!draft.value && agents.length) selectAgent(agents[0]);
@@ -219,8 +223,8 @@ watch(
 watch(
   () => route.query.agent,
   (agentId) => {
-    const agent = store.agents.find((item) => itemId(item) === String(agentId || ""));
-    if (agent) selectAgent(agent);
+    const agent = store.agents.find((item) => itemId(item) === queryString(agentId));
+    if (agent) selectAgent(agent, { syncRoute: false });
   }
 );
 
@@ -276,9 +280,11 @@ function profileOptions(kind, optional = false) {
   return optional ? [{ label: t("common.none"), value: "" }, ...values] : values;
 }
 
-function selectAgent(agent) {
+function selectAgent(agent, options = {}) {
   selectedId.value = itemId(agent);
   draft.value = clone(agent);
+  localStorage.setItem(AGENT_SELECTION_STORAGE_KEY, selectedId.value);
+  if (options.syncRoute !== false) replaceQueryValue("agent", selectedId.value);
   formErrors.value = {};
   formMessage.value = "";
   runtimeStatus.value = null;
@@ -291,6 +297,7 @@ function selectAgent(agent) {
 function createAgent() {
   draft.value = { ...store.newAgent(), _draft: true };
   selectedId.value = "";
+  replaceQueryValue("agent", "");
   formErrors.value = {};
   formMessage.value = "";
 }
@@ -303,6 +310,8 @@ async function save() {
     await store.saveAgent(payload);
     selectedId.value = payload.id;
     draft.value = payload;
+    localStorage.setItem(AGENT_SELECTION_STORAGE_KEY, payload.id);
+    replaceQueryValue("agent", payload.id);
     formErrors.value = {};
     formMessage.value = "";
   } catch (error) {
@@ -414,9 +423,22 @@ function validateKnownProfile(errors, key, kind, label, optional = false) {
 async function remove() {
   if (!draft.value?._draft && await dialog.confirm(t("confirm.deleteAgentNamed", { id: draft.value.id }))) {
     await store.deleteAgent(draft.value.id);
+    localStorage.removeItem(AGENT_SELECTION_STORAGE_KEY);
+    replaceQueryValue("agent", "");
     draft.value = null;
     selectedId.value = "";
   }
+}
+
+function queryString(value) {
+  return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+}
+
+function replaceQueryValue(key, value) {
+  const query = { ...route.query };
+  if (value) query[key] = value;
+  else delete query[key];
+  router.replace({ query }).catch(() => {});
 }
 
 const statusSummary = computed(() => {

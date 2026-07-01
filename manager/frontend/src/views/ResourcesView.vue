@@ -13,7 +13,13 @@
 
     <UiCard v-for="group in groups" :key="`${group.kind}-detail`" :title="group.title">
       <div class="resource-buckets">
-        <details v-for="bucket in buckets" :key="bucket.id" class="advanced-disclosure resource-bucket" :open="bucket.id === 'conflicts'">
+        <details
+          v-for="bucket in buckets"
+          :key="bucket.id"
+          class="advanced-disclosure resource-bucket"
+          :open="bucketOpen(group.kind, bucket.id)"
+          @toggle="setBucketOpen(group.kind, bucket.id, $event.target.open)"
+        >
           <summary>{{ t(bucket.labelKey) }} / {{ rowsFor(group.data, bucket.id).length }}</summary>
           <div v-if="rowsFor(group.data, bucket.id).length" class="resource-row-list">
             <article v-for="row in rowsFor(group.data, bucket.id)" :key="resourceKey(group.kind, row)" class="resource-card">
@@ -56,6 +62,8 @@ const { t } = useI18n();
 const dialog = useDialog();
 const lastResult = ref(null);
 const refreshing = ref(false);
+const RESOURCE_BUCKET_STORAGE_KEY = "zeroclaw.webui.resources.openBuckets";
+const openBuckets = ref(loadOpenBuckets());
 const buckets = [
   { id: "expected", labelKey: "resources.expected" },
   { id: "conflicts", labelKey: "resources.conflicts" },
@@ -103,6 +111,33 @@ function canDelete(bucket) {
   return ["orphans", "legacy", "conflicts"].includes(bucket);
 }
 
+function bucketKey(kind, bucket) {
+  return `${kind}:${bucket}`;
+}
+
+function loadOpenBuckets() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RESOURCE_BUCKET_STORAGE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function bucketOpen(kind, bucket) {
+  const key = bucketKey(kind, bucket);
+  return openBuckets.value.length ? openBuckets.value.includes(key) : bucket === "conflicts";
+}
+
+function setBucketOpen(kind, bucket, open) {
+  const key = bucketKey(kind, bucket);
+  const next = new Set(openBuckets.value);
+  if (open) next.add(key);
+  else next.delete(key);
+  openBuckets.value = [...next];
+  localStorage.setItem(RESOURCE_BUCKET_STORAGE_KEY, JSON.stringify(openBuckets.value));
+}
+
 async function runAction(action, kind, row, extra = {}) {
   lastResult.value = await store.resourceAction(action, { kind, name: resourceName(row) }, extra);
 }
@@ -131,5 +166,7 @@ async function deleteResource(kind, row) {
   await runAction("delete", kind, row);
 }
 
-onMounted(() => refreshResources());
+onMounted(() => {
+  if (!store.resources) refreshResources();
+});
 </script>

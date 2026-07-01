@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { FileArchive } from "@lucide/vue";
 import PageHeader from "../components/PageHeader.vue";
 import UiButton from "../components/UiButton.vue";
@@ -65,8 +65,11 @@ import { useManagerStore } from "../stores/manager.js";
 const store = useManagerStore();
 const { t } = useI18n();
 const dialog = useDialog();
-const includeSecrets = ref(false);
+const EXPORT_INCLUDE_SECRETS_STORAGE_KEY = "zeroclaw.webui.export.includeSecrets";
+const includeSecrets = ref(localStorage.getItem(EXPORT_INCLUDE_SECRETS_STORAGE_KEY) === "true");
 const result = ref(null);
+
+watch(includeSecrets, (value) => localStorage.setItem(EXPORT_INCLUDE_SECRETS_STORAGE_KEY, value ? "true" : "false"));
 
 const backupType = computed(() => t(includeSecrets.value ? "export.fullMode" : "export.redactedMode"));
 const modeHelp = computed(() => t(includeSecrets.value ? "export.fullHelp" : "export.redactedHelp"));

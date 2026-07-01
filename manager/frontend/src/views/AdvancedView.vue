@@ -12,7 +12,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { FileArchive, Package, Settings2 } from "@lucide/vue";
 import ImagesView from "./ImagesView.vue";
@@ -23,6 +23,7 @@ import { useI18n } from "../composables/useI18n.js";
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+const ADVANCED_SELECTION_STORAGE_KEY = "zeroclaw.webui.selected.advanced";
 
 const tabs = computed(() => [
   { key: "images", label: t("nav.images"), icon: Package, component: ImagesView },
@@ -38,6 +39,9 @@ const activeTab = computed(() => {
 const activeComponent = computed(() => tabs.value.find((tab) => tab.key === activeTab.value)?.component || ImagesView);
 
 function selectTab(section) {
+  localStorage.setItem(ADVANCED_SELECTION_STORAGE_KEY, section);
   router.push(`/advanced/${section}`);
 }
+
+watch(activeTab, (tab) => localStorage.setItem(ADVANCED_SELECTION_STORAGE_KEY, tab), { immediate: true });
 </script>

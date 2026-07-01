@@ -13,7 +13,7 @@ export const routes = [
   { path: "/profiles/:kind", name: "profiles", component: ProfilesView, meta: { label: "Profiles" } },
   { path: "/skills", name: "skills", component: SkillsView, meta: { label: "Skills" } },
   { path: "/prompts", name: "prompts", component: PromptsView, meta: { label: "Prompts" } },
-  { path: "/advanced", redirect: "/advanced/images" },
+  { path: "/advanced", redirect: () => `/advanced/${localStorage.getItem("zeroclaw.webui.selected.advanced") || "images"}` },
   { path: "/advanced/:section", name: "advanced", component: AdvancedView, meta: { label: "Advanced" } },
   { path: "/images", redirect: "/advanced/images" },
   { path: "/resources", redirect: "/advanced/resources" },
